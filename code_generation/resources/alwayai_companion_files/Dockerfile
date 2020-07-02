@@ -1,0 +1,1 @@
+FROM alwaysai/edgeiq:latest
