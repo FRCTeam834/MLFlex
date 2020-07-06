@@ -1,0 +1,32 @@
+<annotation>
+  <folder>JPEGImages</folder>
+  <filename>frame_01905.jpg</filename>
+  <path>C:\Users\xmanp\Desktop\GitHub\MLFlex\testing\output\JPEGImages\frame_01905.jpg</path>
+  <source>
+    <database>None</database>
+  </source>
+  <size>
+    <width>640</width>
+    <height>426</height>
+    <depth>3</depth>
+  </size>
+  <segmented>0</segmented>
+  <object>
+    <name>Power_Cell</name>
+    <bndbox>
+      <xmin>64.21875</xmin>
+      <ymin>176.056338028169</ymin>
+      <xmax>113.4375</xmax>
+      <ymax>249.2957746478873</ymax>
+    </bndbox>
+  </object>
+  <object>
+    <name>Power_Cell</name>
+    <bndbox>
+      <xmin>60.9375</xmin>
+      <ymin>144.3661971830986</ymin>
+      <xmax>102.65625</xmax>
+      <ymax>189.43661971830986</ymax>
+    </bndbox>
+  </object>
+</annotation>

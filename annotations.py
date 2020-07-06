@@ -11,7 +11,7 @@ import json
 import os
 
 # Setup constants for later use
-supported_formats = '.jpg', '.JPG', '.png', '.PNG' # .............................. Specifies the allowable image formats
+supported_formats = '.jpg', '.JPG', '.png', '.PNG' # Specifies the allowable image formats
 # allowed_percent_crop_lower = 1 # .................................................. Specifies the smallest allowable crop percentage
 # allowed_percent_crop_upper = 5 # .................................................. Specifies the largest allowable crop percentage
 # minimum_box_percent = 2 # ......................................................... Specifies the smallest allowable size of a box in percent of image dimension
@@ -38,10 +38,9 @@ def convert_Supervisely_2_Pascal_VOC(input_supervisely_folder, output_folder, cl
         os.mkdir(os.path.join(output_folder, "JPEGImages"))
 
     if not os.path.isdir(os.path.join(output_folder, "Annotations")):
-        # Image folder doesn't exist, we need to create it
+        # Annotations folder doesn't exist, we need to create it
         os.mkdir(os.path.join(output_folder, "Annotations"))
 
-    
     # Provide feedback
     print("Beginning counting available images")
 
@@ -108,20 +107,23 @@ def convert_Supervisely_2_Pascal_VOC(input_supervisely_folder, output_folder, cl
 
 
 def convert_original_image(filename, input_supervisely_folder, output_folder_path):
-    # Get the file's name for splitting
-    raw_filename, file_ext = os.path.splitext(filename)
-
-    # Create an image for copying
-    image = Image.open(os.path.join(input_supervisely_folder, 'img', filename))
-
-    # Save the output image to the specified directory
-    image.save(os.path.join(output_folder_path, "JPEGImages", (raw_filename + ".jpg")))
-
+    
     # Get annotation data from the respective annotation file
     image_objects = get_image_objects(filename, input_supervisely_folder)
 
-    # Build an xml with the old file
-    build_xml_annotation(image_objects, (raw_filename + ".jpg"), output_folder_path)
+    # Check if the image has valid data. If not, it can't be used
+    if image_objects:
+        # Get the file's name for splitting
+        raw_filename, file_ext = os.path.splitext(filename)
+        
+        # Create an image for copying
+        image = Image.open(os.path.join(input_supervisely_folder, 'img', filename))
+        
+        # Save the output image to the specified directory
+        image.save(os.path.join(output_folder_path, "JPEGImages", (raw_filename + ".jpg")))
+
+        # Build an xml with the old file
+        build_xml_annotation(image_objects, (raw_filename + ".jpg"), output_folder_path)
 
 
 def get_image_objects(image_name, input_supervisely_folder):
@@ -216,10 +218,10 @@ def build_xml_annotation(objects, image_name, output_folder):
         ymin = xml.SubElement(bndbox, 'ymin')
         xmax = xml.SubElement(bndbox, 'xmax')
         ymax = xml.SubElement(bndbox, 'ymax')
-        xmin.text = str(round(object_list[1]))
-        ymin.text = str(round(object_list[2]))
-        xmax.text = str(round(object_list[3]))
-        ymax.text = str(round(object_list[4]))
+        xmin.text = str(object_list[1])
+        ymin.text = str(object_list[2])
+        xmax.text = str(object_list[3])
+        ymax.text = str(object_list[4])
     
     with open(os.path.join(output_folder, "Annotations", (raw_image_name + '.xml')), 'w') as xml_file:
         xml_file.write(prettify_xml(annotation))
@@ -240,16 +242,6 @@ def get_all_file_paths(directory):
   
     # returning all file paths 
     return file_paths
-
-
-
-
-
-
-
-
-
-
 
 
 

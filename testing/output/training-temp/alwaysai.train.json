@@ -1,0 +1,10 @@
+{
+    "numSteps": 200,
+    "numClasses": 1,
+    "labels": [
+        "Power_Cell"
+    ],
+    "batchSize": 8,
+    "id": "cap1sup/test",
+    "fromCheckPoint": false
+}
