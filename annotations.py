@@ -8,41 +8,42 @@ from random import randint
 import shutil
 import time
 import json
+import glob
 import os
 
 # Setup constants for later use
-supported_formats = '.jpg', '.JPG', '.png', '.PNG' # Specifies the allowable image formats
-# allowed_percent_crop_lower = 1 # .................................................. Specifies the smallest allowable crop percentage
-# allowed_percent_crop_upper = 5 # .................................................. Specifies the largest allowable crop percentage
-# minimum_box_percent = 2 # ......................................................... Specifies the smallest allowable size of a box in percent of image dimension
+supported_formats = '.jpg', '.JPG', '.png', '.PNG' # .............................. Specifies the allowable image formats
+allowed_percent_crop_lower = 1 # .................................................. Specifies the smallest allowable crop percentage
+allowed_percent_crop_upper = 5 # .................................................. Specifies the largest allowable crop percentage
+minimum_box_percent = 2 # ......................................................... Specifies the smallest allowable size of a box in percent of image dimension
 
 
-def convert_Supervisely_2_Pascal_VOC(input_supervisely_folder, output_folder, cleanup):
+def convert_Supervisely_2_Pascal_VOC(input_supervisely_folder, output_folder, cleanup, feedback, flipped_images, cropped_images, create_zip, debug = False):
     """Converts a folder of Supervisely annotations to PascalVOC format 
 
     :param input_supervisely_folder: The folder of Supervisely annotations and images for conversion
     :param output_folder: The folder for the final zip file
     :param cleanup: Should the Supervisely folder be deleted
-
+    :param feedback: Provides feedback on the conversion process
+    :param flipped_images: Adds flipped versions of the images to the output
+    :param cropped_images: Adds cropped versions of the images to the output
+    :param create_zip: Creates a zip file of the data and cleans up the temporary folders. If false, folders will remain untouched
+    :param debug: Doesn't delete the output folders
     """
 
     # Take note of the start time
     start_time = time.time()
 
-    # Provide feedback
-    print("Creating output folder structure")
-
-    # Check if output folder structure is present
+    # Make sure the temporary folders are in place
     if not os.path.isdir(os.path.join(output_folder, "JPEGImages")):
-        # Image folder doesn't exist, we need to create it
         os.mkdir(os.path.join(output_folder, "JPEGImages"))
 
     if not os.path.isdir(os.path.join(output_folder, "Annotations")):
-        # Annotations folder doesn't exist, we need to create it
         os.mkdir(os.path.join(output_folder, "Annotations"))
 
     # Provide feedback
-    print("Beginning counting available images")
+    if feedback:
+        print("Beginning counting available images")
 
     # Create an empty accumulator for a readout of the progress
     image_name_list = []
@@ -56,7 +57,8 @@ def convert_Supervisely_2_Pascal_VOC(input_supervisely_folder, output_folder, cl
                 image_name_list.append(filename)
 
     # Give feedback on current process
-    print("Starting conversion process for " + str(len(image_name_list)) + " images")
+    if feedback:
+        print("Starting conversion process for " + str(len(image_name_list)) + " images")
 
     # Declare counter and begin the conversion process
     current_image_index = 0
@@ -64,52 +66,64 @@ def convert_Supervisely_2_Pascal_VOC(input_supervisely_folder, output_folder, cl
         # Convert the original image
         convert_original_image(image_name, input_supervisely_folder, output_folder)
 
+        # Flip the image
+        if flipped_images:
+            flip_image(image_name, input_supervisely_folder, output_folder)
+
+        if cropped_images:
+            crop_image(image_name, input_supervisely_folder, output_folder, allowed_percent_crop_lower, allowed_percent_crop_upper, minimum_box_percent)
+
         # Count that this image is finished
         current_image_index = current_image_index + 1
 
         # Print the progress
-        print("Progress: " + str(current_image_index) + "/" + str(len(image_name_list)))
+        if feedback:
+            print("Progress: " + str(current_image_index) + "/" + str(len(image_name_list)))
 
+    if create_zip:
+        # Find all of the converted files and folders
+        image_file_paths = get_all_file_paths(os.path.join(output_folder, "JPEGImages"))
+        annotation_file_paths = get_all_file_paths(os.path.join(output_folder, "Annotations"))
 
-    # Find all of the converted files and folders
-    image_file_paths = get_all_file_paths(os.path.join(output_folder, "JPEGImages"))
-    annotation_file_paths = get_all_file_paths(os.path.join(output_folder, "Annotations"))
+        # Get the project name, then replace the spaces with underscores
+        supervisely_project_name = os.path.basename(input_supervisely_folder)
+        formatted_name = supervisely_project_name.replace(" ", "_")
 
-    # Format the folder name
-    unformatted_supervisely_folder_name = os.path.basename(input_supervisely_folder)
-    formatted_supervisely_folder_name = unformatted_supervisely_folder_name.replace(" ", "_")
+        # Write each of the files to a zip
+        file_name = os.path.join(output_folder, (formatted_name + ".zip"))
+        with ZipFile(file_name,'w') as zip_file: 
 
-    # Write each of the files to a zip
-    file_name = os.path.join(output_folder, (formatted_supervisely_folder_name + ".zip"))
-    with ZipFile(file_name,'w') as zip_file: 
+            # Write each image 
+            for file in image_file_paths: 
+                zip_file.write(file, arcname = os.path.join("JPEGImages", os.path.basename(file)))
 
-        # Write each image 
-        for file in image_file_paths: 
-            zip_file.write(file, arcname = os.path.join("JPEGImages", os.path.basename(file)))
+            # Write each annotation
+            for file in annotation_file_paths: 
+                zip_file.write(file, arcname = os.path.join("Annotations", os.path.basename(file)))
 
-        # Write each annotation
-        for file in annotation_file_paths: 
-            zip_file.write(file, arcname = os.path.join("Annotations", os.path.basename(file)))
-
-    # Clean up the output of temporary folders
-    shutil.rmtree(os.path.join(output_folder, "JPEGImages"))
-    shutil.rmtree(os.path.join(output_folder, "Annotations"))
+        # Clean up the output of temporary folders
+        if not debug:
+            shutil.rmtree(os.path.join(output_folder, "JPEGImages"))
+            shutil.rmtree(os.path.join(output_folder, "Annotations"))
 
     # Clean up the Supervisely folder as well if indicated
     if cleanup:
         # Need to delete the input folder
         shutil.rmtree(input_supervisely_folder)
 
+    # Record the ending time
     end_time = time.time()
 
-    print("Finished converting " + str(len(image_name_list)) + " images")
-    print("Conversion time: " + str(round(end_time - start_time, 2)) + " seconds")
+    # Provide feedback
+    if feedback:
+        print("Finished converting " + str(len(image_name_list)) + " images")
+        print("Conversion time: " + str(round(end_time - start_time, 2)) + " seconds")
 
 
-def convert_original_image(filename, input_supervisely_folder, output_folder_path):
+def convert_original_image(filename, input_folder_path, output_folder_path):
     
     # Get annotation data from the respective annotation file
-    image_objects = get_image_objects(filename, input_supervisely_folder)
+    image_objects = get_image_objects(filename, input_folder_path)
 
     # Check if the image has valid data. If not, it can't be used
     if image_objects:
@@ -117,13 +131,47 @@ def convert_original_image(filename, input_supervisely_folder, output_folder_pat
         raw_filename, file_ext = os.path.splitext(filename)
         
         # Create an image for copying
-        image = Image.open(os.path.join(input_supervisely_folder, 'img', filename))
+        image = Image.open(os.path.join(input_folder_path, 'img', filename))
         
         # Save the output image to the specified directory
-        image.save(os.path.join(output_folder_path, "JPEGImages", (raw_filename + ".jpg")))
+        new_filename = os.path.basename(input_folder_path) + "_" + raw_filename
+        new_filename = new_filename.replace(" ", "_")
+        image.save(os.path.join(output_folder_path, "JPEGImages", (new_filename + ".jpg")))
 
         # Build an xml with the old file
-        build_xml_annotation(image_objects, (raw_filename + ".jpg"), output_folder_path)
+        build_xml_annotation(image_objects, (new_filename + ".jpg"), output_folder_path)
+
+
+def flip_image(filename, input_folder_path, output_folder_path):
+    # Get the file's name for splitting
+    raw_filename, file_ext = os.path.splitext(filename)
+
+    # Create an image for manipulation
+    image = Image.open(os.path.join(input_folder_path, 'img/', filename))
+
+    # Flip the image
+    flipped_image = ImageOps.mirror(image)
+
+    image_width, image_height = flipped_image.size
+
+    # Save the output image to the specified directory
+    new_filename = os.path.basename(input_folder_path) + "_" + raw_filename + '_flipped' + file_ext
+    new_filename = new_filename.replace(" ", "_")
+    flipped_image.save(os.path.join(output_folder_path, "JPEGImages", new_filename))
+
+    # Get the annotation data from the respective annotation file
+    image_objects = get_image_objects(filename, input_folder_path)
+
+    # Apply adjustments
+    for object_ in image_objects:
+        # Flip only the X coords, not the Ys
+        x_min_offset = image_width - object_[1]
+        x_max_offset = image_width - object_[3]
+        object_[1] = x_max_offset
+        object_[3] = x_min_offset
+
+    # Save a new xml file for the annotation data
+    build_xml_annotation(image_objects, new_filename, output_folder_path)
 
 
 def get_image_objects(image_name, input_supervisely_folder):
@@ -213,15 +261,15 @@ def build_xml_annotation(objects, image_name, output_folder):
         name.text = object_list[0]
 
         # Bounding box
-        bndbox = xml.SubElement(object_, 'bndbox')
-        xmin = xml.SubElement(bndbox, 'xmin')
-        ymin = xml.SubElement(bndbox, 'ymin')
-        xmax = xml.SubElement(bndbox, 'xmax')
-        ymax = xml.SubElement(bndbox, 'ymax')
-        xmin.text = str(object_list[1])
-        ymin.text = str(object_list[2])
-        xmax.text = str(object_list[3])
-        ymax.text = str(object_list[4])
+        bounding_box = xml.SubElement(object_, 'bndbox')
+        x_min = xml.SubElement(bounding_box, 'xmin')
+        y_min = xml.SubElement(bounding_box, 'ymin')
+        x_max = xml.SubElement(bounding_box, 'xmax')
+        y_max = xml.SubElement(bounding_box, 'ymax')
+        x_min.text = str(object_list[1])
+        y_min.text = str(object_list[2])
+        x_max.text = str(object_list[3])
+        y_max.text = str(object_list[4])
     
     with open(os.path.join(output_folder, "Annotations", (raw_image_name + '.xml')), 'w') as xml_file:
         xml_file.write(prettify_xml(annotation))
@@ -230,65 +278,26 @@ def build_xml_annotation(objects, image_name, output_folder):
 
 def get_all_file_paths(directory): 
   
-    # initializing empty file paths list 
+    # Create empty file paths list 
     file_paths = []
   
-    # Get all of the files in the  directory
+    # Get all of the files in the directory
     for root, directories, files in os.walk(directory):
         for filename in files:
-            # join the two strings in order to form the full filepath.
+            # Join the two strings in order to form the full filepath.
             filepath = os.path.join(root, filename)
             file_paths.append(filepath)
   
-    # returning all file paths 
+    # Return all file paths 
     return file_paths
 
 
-
-# For later... maybe?
-
-# ! Broken
-"""
-def flip_image(filename, output_folder_path):
+def crop_image(filename, input_folder_path, output_folder_path, allowed_percent_crop_lower, allowed_percent_crop_upper, minimum_box_percent):
     # Get the file's name for splitting
     raw_filename, file_ext = os.path.splitext(filename)
 
     # Create an image for manipulation
-    image = Image.open(input_supervisely_folder_path + 'img/' + filename)
-
-    # Flip the image
-    flipped_image = ImageOps.mirror(image)
-
-    image_width, image_height = flipped_image.size
-
-    # Save the output image to the specified directory
-    new_filename = raw_filename + '_flipped' + file_ext
-    flipped_image.save(output_folder_path + new_filename)
-
-    # Get the annotation data from the respective annotation file
-    image_objects = get_image_objects(filename)
-
-    # Apply adjustments
-    for object_ in image_objects:
-        # Flip only the X coords, not the Ys
-        object_offset = image_width - object_[1]
-        object_[1] = object_offset
-
-        object_offset = image_width - object_[3]
-        object_[3] = object_offset
-
-    # Save a new xml file for the annotation data
-    build_xml_annotation(image_objects, new_filename, output_folder_path)
-"""
-
-# ! Broken
-"""
-def crop_image(filename, output_folder_path):
-    # Get the file's name for splitting
-    raw_filename, file_ext = os.path.splitext(filename)
-
-    # Create an image for manipulation
-    image = Image.open(input_supervisely_folder_path + 'img/' + filename)
+    image = Image.open(os.path.join(input_folder_path, 'img/', filename))
 
     # Get the bounding box of the image
     (left, upper, right, lower) = image.getbbox()
@@ -312,11 +321,12 @@ def crop_image(filename, output_folder_path):
     cropped_image_width, cropped_image_height = cropped_image.size
 
     # Save the output image to the specified directory
-    new_filename = raw_filename + '_cropped' + file_ext
-    cropped_image.save(output_folder_path + new_filename)
+    new_filename = os.path.basename(input_folder_path) + "_" + raw_filename + '_cropped' + file_ext
+    new_filename = new_filename.replace(" ", "_")
+    cropped_image.save(os.path.join(output_folder_path, "JPEGImages", new_filename))
 
     # Get the annotation data from the respective annotation file
-    image_objects = get_image_objects(filename)
+    image_objects = get_image_objects(filename, input_folder_path)
 
     # Apply adjustments
     current_object = 0
@@ -324,7 +334,7 @@ def crop_image(filename, output_folder_path):
         # Create a check that will delete the object if it is no longer on screen
         invalid_coordinates = False
 
-        # Cycle through the coordinates, ajusting and checking each one
+        # Cycle through the coordinates, adjusting and checking each one
         for coordinate_num in range(1, 5):
             if (coordinate_num % 2) == 0:
                 # Number is even, and is a Y coordinate
@@ -339,8 +349,9 @@ def crop_image(filename, output_folder_path):
         # Check to see if the coordinate is out of bounds
 
         # X
+        # Right side checking
         if object_[1] > cropped_image_width:
-            # Whole box is out of range
+            # Whole box is out of range to the right
             invalid_coordinates = True
         elif object_[3] > cropped_image_width:
             # Only the right of the box is out of range, we can just move the right coord to meet the right side of the image
@@ -354,7 +365,24 @@ def crop_image(filename, output_folder_path):
                 # Box is too small
                 invalid_coordinates = True
 
+        # Left side checking
+        elif object_[3] < 0:
+            # Whole box is out of range to the left
+            invalid_coordinates = True
+        elif object_[1] < 0:
+            # Only the left of the box is out of range, we can just move the left coord to meet the left side of the image
+            object_[3] = cropped_image_width
+            
+            # Make sure that the adjusted box isn't too small
+            box_width = object_[3] - object_[1]
+            smallest_allowable_width = cropped_image_width * (minimum_box_percent / 100)
+
+            if box_width < smallest_allowable_width:
+                # Box is too small
+                invalid_coordinates = True
+
         # Y
+        # Bottom checking
         if object_[2] > cropped_image_height:
             # Whole box is out of range
             invalid_coordinates = True
@@ -370,14 +398,29 @@ def crop_image(filename, output_folder_path):
                 # Box is too small
                 invalid_coordinates = True
 
+        # Top checking
+        elif object_[4] < 0:
+            # Whole box is out of range
+            invalid_coordinates = True
+        elif object_[2] < 0:
+            # Only the top of the box is out of range, we can just move the upper coord to meet the top of the image
+            object_[2] = cropped_image_height
+
+            # Make sure that the box isn't too small
+            box_height = object_[4] - object_[2]
+            smallest_allowable_height = cropped_image_height * (minimum_box_percent / 100)
+
+            if box_height < smallest_allowable_height:
+                # Box is too small
+                invalid_coordinates = True
+
 
         # Delete the coordinate if it is invalid
         if invalid_coordinates:
-            unused = image_objects.pop(current_object)
+            image_objects.pop(current_object)
         
         # Continue to count the current object
         current_object = current_object + 1
 
     # Save a new xml file for the annotation data
-    build_xml_annotation(image_objects, new_filename, output_folder)
-"""
+    build_xml_annotation(image_objects, new_filename, output_folder_path)
