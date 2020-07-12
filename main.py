@@ -4,10 +4,6 @@ import argparse
 import shutil
 import os
 
-# Testing parameters
-testing_input_folder = os.path.abspath("./testing/input/Dual Balls Video/")
-testing_output_folder = os.path.abspath("./testing/output")
-
 def main():
 
     # Initialize parser 
@@ -89,9 +85,9 @@ def main():
 
         # Convert
         if args.join:
-            convert_Supervisely_2_Pascal_VOC(os.path.abspath(folder), output_path, args.cleanup, args.feedback, args.augmentation, args.augmentation, last_folder, debug = args.debug)
+            convert_Supervisely_2_Pascal_VOC(os.path.abspath(folder), output_path, args.cleanup, args.feedback, args.augmentation, args.augmentation, args.augmentation, last_folder, debug = args.debug)
         else:
-            convert_Supervisely_2_Pascal_VOC(os.path.abspath(folder), output_path, args.cleanup, args.feedback, args.augmentation, args.augmentation, True, debug = args.debug)
+            convert_Supervisely_2_Pascal_VOC(os.path.abspath(folder), output_path, args.cleanup, args.feedback, args.augmentation, args.augmentation, args.augmentation, True, debug = args.debug)
 
         # Increment the counter
         current_folder_index = current_folder_index + 1
