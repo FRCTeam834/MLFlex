@@ -1,0 +1,164 @@
+import time
+import edgeiq
+from networktables import NetworkTables
+from cscore import CameraServer
+import logging
+import numpy as np
+
+# Constant for the default confidence (0 being 0% sure and 1 being 100% sure)
+default_conf_thres = .25
+deafault_width = 640
+default_height = 320
+
+def main():
+    # Allow Rio to boot and configure network
+    time.sleep(10.0)
+
+    # Setup logging for the NetworkTables messages
+    logging.basicConfig(level=logging.DEBUG)
+
+    # Setup NetworkTables
+    NetworkTables.initialize(server = '10.8.34.2')
+    
+    # Wait for the Pi to connect to the Rio
+    while(not NetworkTables.isConnected()):
+        time.sleep(0.5)
+    
+    # Set the update rate too slow so it doesn't mess with the flush commands
+    NetworkTables.setUpdateRate(1)
+
+    # Create table for values
+    EVS = NetworkTables.getTable('EVS')
+    sd = NetworkTables.getTable('SmartDashboard')
+
+    # Set default values
+    EVS.putBoolean('run_vision_tracking', True)
+    EVS.putNumber('confidence_thres', default_conf_thres)
+    EVS.putNumber('stream_width', default_width)
+    EVS.putNumber('stream_height', default_height)
+
+    # Create sub-tables and append them to arrays
+    GoalTables = []
+    Goal0 = EVS.getSubTable('Goal0')
+    GoalTables.append(Goal0) 
+
+    Power_CellTables = []
+    Power_Cell0 = EVS.getSubTable('Power_Cell0')
+    Power_CellTables.append(Power_Cell0)
+    Power_Cell1 = EVS.getSubTable('Power_Cell1')
+    Power_CellTables.append(Power_Cell1)
+    Power_Cell2 = EVS.getSubTable('Power_Cell2')
+    Power_CellTables.append(Power_Cell2)
+    Power_Cell3 = EVS.getSubTable('Power_Cell3')
+    Power_CellTables.append(Power_Cell3)
+    Power_Cell4 = EVS.getSubTable('Power_Cell4')
+    Power_CellTables.append(Power_Cell4)
+    Power_Cell5 = EVS.getSubTable('Power_Cell5')
+    Power_CellTables.append(Power_Cell5)
+    Power_Cell6 = EVS.getSubTable('Power_Cell6')
+    Power_CellTables.append(Power_Cell6)
+    Power_Cell7 = EVS.getSubTable('Power_Cell7')
+    Power_CellTables.append(Power_Cell7)
+    Power_Cell8 = EVS.getSubTable('Power_Cell8')
+    Power_CellTables.append(Power_Cell8)
+    Power_Cell9 = EVS.getSubTable('Power_Cell9')
+    Power_CellTables.append(Power_Cell9)
+
+    # Setup EdgeIQ
+    obj_detect = edgeiq.ObjectDetection(
+            "cap1sup/test")
+    obj_detect.load(engine=edgeiq.Engine.DNN_OPENVINO)
+        
+    # Setup color values for objects (in BGR format), and then combine them to a single scheme
+    default_color = (0, 0, 255)
+    color_map = {
+        "Goal": (0, 255, 255),
+        "Power_Cell": (255, 0, 0)
+    }
+    colors = [color_map.get(label, default_color) for label in obj_detect.labels]
+
+    # Get the FPS
+    fps = edgeiq.FPS()
+    
+    # Setup the tracker for 20 frames deregister time and have a matching tolerance of 50
+    tracker = edgeiq.CentroidTracker(deregister_frames=20, max_distance=50)
+    
+    # Setup video cam feed
+    cs = CameraServer.getInstance()
+    cs.enableLogging()
+    outputStream = cs.putVideo("Vision_Out", 300, 300)
+
+    try:
+        with edgeiq.WebcamVideoStream(cam=0) as video_stream: 
+            
+            # Allow Webcam to warm up
+            time.sleep(2.0)
+            fps.start()
+
+            for i in range(0,0): 
+                GoalTables[i].putBoolean('inUse', False)
+
+            for i in range(0,9): 
+                Power_CellTables[i].putBoolean('inUse', False)
+
+            # loop detection
+            while True:
+
+                frame = video_stream.read()
+
+                # Check to see if the camera should be processing images
+                if (EVS.getBoolean('run_vision_tracking', True)):
+                    
+                    # Process the frame
+                    results = obj_detect.detect_objects(frame, confidence_level = default_conf_thres)
+
+
+                # Counters - they reset after every frame in the while loop 
+                GoalCounter = 0 
+                Power_CellCounter = 0 
+ 
+                # Define the collections variable
+                predictions = []
+       
+                # Update the EVS NetworkTable with new values
+                for prediction in tracked_objects:                                                                                                                        
+
+                    center_x, center_y = prediction.box.center
+                    # Code goes here
+                    numValues = [center_x, center_y, prediction.box.end_x, prediction.box.end_y, prediction.box.area, (prediction.confidence * 100)]
+                    
+                    for entry in range(0, len(numValues) - 1):
+                        numValues[entry] = round(numValues[entry], 3)
+
+                    numValuesArray = np.asarray(numValues) 
+
+                    if prediction.label == "Goal":
+     
+                        GoalTables[GoalCounter].putNumberArray('values', numValuesArray)
+                        # Boolean asks to update
+                        GoalTables[GoalCounter].putBoolean('inUse', True)
+
+                        GoalCounter += 1 
+
+                    if prediction.label == "Power_Cell":
+     
+                        Power_CellTables[Power_CellCounter].putNumberArray('values', numValuesArray)
+                        # Boolean asks to update
+                        Power_CellTables[Power_CellCounter].putBoolean('inUse', True)
+
+                        Power_CellCounter += 1 
+
+                # Sets the value after the last value to false. The Rio will stop when it finds a False
+                GoalTables[GoalCounter].putBoolean('inUse', False)
+                Power_CellTables[Power_CellCounter].putBoolean('inUse', False)
+
+                EVS.putBoolean('checked', False)
+                fps.update()
+    finally:
+        fps.stop()
+        print("elapsed time: {:.2f}".format(fps.get_elapsed_seconds()))
+        print("approx. FPS: {:.2f}".format(fps.compute_fps()))
+
+        print("Program Ending")
+if __name__ == "__main__":
+    main()
