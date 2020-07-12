@@ -169,7 +169,7 @@ def flip_image(filename, input_folder_path, output_folder_path):
         image_width, image_height = flipped_image.size
 
         # Save the output image to the specified directory
-        new_filename = os.path.basename(input_folder_path) + "_" + raw_filename + '_flipped' + file_ext
+        new_filename = os.path.basename(input_folder_path) + "_" + raw_filename + "_flipped.jpg"
         new_filename = new_filename.replace(" ", "_")
         flipped_image.save(os.path.join(output_folder_path, "JPEGImages", new_filename))
 
@@ -341,7 +341,7 @@ def crop_image(filename, input_folder_path, output_folder_path, allowed_percent_
         cropped_image_width, cropped_image_height = cropped_image.size
 
         # Save the output image to the specified directory
-        new_filename = os.path.basename(input_folder_path) + "_" + raw_filename + '_cropped' + file_ext
+        new_filename = os.path.basename(input_folder_path) + "_" + raw_filename + "_cropped.jpg"
         new_filename = new_filename.replace(" ", "_")
         cropped_image.save(os.path.join(output_folder_path, "JPEGImages", new_filename))
 
@@ -469,7 +469,7 @@ def gaussian_noise_image(filename, input_folder_path, output_folder_path):
         gaussian_noise_image = Image.fromarray(noise_img)
 
         # Save the output image to the specified directory
-        new_filename = os.path.basename(input_folder_path) + "_" + raw_filename + '_gaussian_noise' + file_ext
+        new_filename = os.path.basename(input_folder_path) + "_" + raw_filename + "_gaussian_noise.jpg"
         new_filename = new_filename.replace(" ", "_")
         gaussian_noise_image.save(os.path.join(output_folder_path, "JPEGImages", new_filename))
 
