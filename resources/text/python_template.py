@@ -10,7 +10,6 @@ default_conf_thres = .25
 default_width = 640
 default_height = 320
 
-
 def main():
     # Allow Rio to boot and configure network
     time.sleep(10.0)
@@ -65,7 +64,7 @@ def main():
     Goal0 = EVS.getSubTable('Goal0')
     GoalTables.append(Goal0)
 
-    # Setup EdgeIQ 
+    # Setup EdgeIQ
     obj_detect = edgeiq.ObjectDetection(
             "CAP1Sup/FRC_2020_834_v2") 
     obj_detect.load(engine=edgeiq.Engine.DNN_OPENVINO)
@@ -179,13 +178,11 @@ def main():
                     # Notify the Rio that vision processing is done, and the data is valid again
                     EVS.putBoolean('checked', False)
 
-
                     # Do the frame labeling last, as it is lower priority
                     frame = edgeiq.markup_image(frame, results.predictions, colors=colors)
 
-
-                # Flush all of the values to update on NetworkTables
-                NetworkTables.flush()
+                    # Flush all of the values to update on NetworkTables
+                    NetworkTables.flush()
 
                 # Get the streaming parameters
                 width = EVS.getNumber('stream_width', default_width)

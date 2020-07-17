@@ -35,12 +35,13 @@ def main():
     parser.add_argument("-p", "--no_printed_info",      required = False, action = "store_true", default = False, help = "Do you want the information to be not printed?")
     parser.add_argument("-s", "--streamer",             required = False, action = "store_true", default = False, help = "If you want to have a stream of the output (debugging only)")
     parser.add_argument("-d", "--dashboard_confidence", required = False, action = "store_true", default = False, help = "If you want to have the threshold on the Smart Dashboard")
+    parser.add_argument("-ds", "--dashboard_streaming", required = False, action = "store_true", default = False, help = "If you want to have a labeled stream over NetworkTables")
 
     # Read arguments from command line 
     args = parser.parse_args()
 
     # Generate the Python file, then save it
-    python_code = generatePythonFile(args.tag_list, args.instance_list, args.color_scheme, args.team_number, args.model_name, args.neural_compute_stick, args.no_printed_info, args.streamer, args.dashboard_confidence)
+    python_code = generatePythonFile(args.tag_list, args.instance_list, args.color_scheme, args.team_number, args.model_name, args.neural_compute_stick, args.no_printed_info, args.streamer, args.dashboard_confidence, args.dashboard_streaming)
 
     # Generate the Java file, then save it
     java_code = generateJavaFile(args.tag_list, args.instance_list)
@@ -65,12 +66,17 @@ def main():
         os.mkdir(raspi_dir)
         os.mkdir(rio_dir)
 
+        if args.dashboard_streaming:
+            companion_file_directory = "./resources/alwaysai_companion_files/standard_setup/"
+        else:
+            companion_file_directory = "./resources/alwaysai_companion_files/no_dashboard_stream/"
+
         # Get all the files in the AlwaysAi companion files and see if they are valid
-        companion_file_list = os.listdir("./resources/alwaysai_companion_files/")
+        companion_file_list = os.listdir(companion_file_directory)
 
         # Copy the standard project files over
         for file_ in companion_file_list:
-            full_file_path = os.path.join(os.path.abspath("./resources/alwaysai_companion_files/"), file_)
+            full_file_path = os.path.join(os.path.abspath(companion_file_directory), file_)
             shutil.copy(full_file_path, raspi_dir)
 
         # Save the Python file
@@ -96,9 +102,9 @@ def main():
 # neural_compute_stick : If we're using a compute stick accelerator                 : Yes (usually)
 # print_info           : Do you want to print info (for debugging)                  : No (usually)
 # streamer             : If you want to have a stream of the output, debugging only : No (usually)
-# dashboard_confidence : If you want to have the threshold on the Smart Dashboard?  : Doesn't work :)
+# dashboard_confidence : If you want to have the threshold on the Smart Dashboard?  : Does work :)
 
-def generatePythonFile(tag_list, instance_list, color_scheme, team_number, model_name, neural_compute_stick, print_info, streamer, dashboard_confidence):
+def generatePythonFile(tag_list, instance_list, color_scheme, team_number, model_name, neural_compute_stick, print_info, streamer, dashboard_confidence, dashboard_streaming):
     """Generates a Python file with the input parameters"""
    
     # Convert the instance list integers
@@ -117,17 +123,24 @@ def generatePythonFile(tag_list, instance_list, color_scheme, team_number, model
     pythonAddString( 
     """import time
 import edgeiq
-from networktables import NetworkTables
-from cscore import CameraServer
-import logging
+from networktables import NetworkTables""")
+
+    if dashboard_streaming:
+        pythonAddString('\nfrom cscore import CameraServer')
+    
+    pythonAddString("""\nimport logging
 import numpy as np
+""")
 
-# Constant for the default confidence (0 being 0% sure and 1 being 100% sure)
-default_conf_thres = .25
-deafault_width = 640
-default_height = 320
-
-def main():
+    pythonAddString("\n# Constants")
+    pythonAddString("\ndefault_conf_thres = .25")
+    
+    if dashboard_streaming:
+        pythonAddString("""\ndefault_width = 640
+default_height = 320""")
+    
+    pythonAddString(
+"""\n\ndef main():
     # Allow Rio to boot and configure network
     time.sleep(10.0)
 
@@ -152,7 +165,7 @@ def main():
 
     pythonAddString(
         """.2')
-    
+
     # Wait for the Pi to connect to the Rio
     while(not NetworkTables.isConnected()):
         time.sleep(0.5)
@@ -165,14 +178,17 @@ def main():
     sd = NetworkTables.getTable('SmartDashboard')
 
     # Set default values
-    EVS.putBoolean('run_vision_tracking', True)
-    EVS.putNumber('confidence_thres', default_conf_thres)
-    EVS.putNumber('stream_width', default_width)
-    EVS.putNumber('stream_height', default_height)
+    EVS.putBoolean('run_vision_tracking', True)""")
 
-    # Create sub-tables and append them to arrays
-"""
-    )
+    if dashboard_confidence:
+        pythonAddString("\n    EVS.putNumber('confidence_thres', default_conf_thres)")
+
+    if dashboard_streaming:
+        pythonAddString("""\n    EVS.putNumber('stream_width', default_width)
+    EVS.putNumber('stream_height', default_height)""")
+
+    pythonAddString("""\n\n    # Create sub-tables and append them to arrays
+""")
 
     
     subtables_string = ""
@@ -190,9 +206,8 @@ def main():
     pythonAddString(subtables_string)
     pythonAddString('''\n
     # Setup EdgeIQ
-    obj_detect = edgeiq.ObjectDetection(
-            "''' + model_name + '''")
-    obj_detect.load(engine=edgeiq.Engine.DNN''')
+    obj_detect = edgeiq.ObjectDetection("''' + model_name + '''")
+    obj_detect.load(engine = edgeiq.Engine.DNN''')
 
 
     if neural_compute_stick == True:
@@ -201,7 +216,7 @@ def main():
     pythonAddString(")")
 
     pythonAddString("""
-        
+
     # Setup color values for objects (in BGR format), and then combine them to a single scheme
     default_color = (""" + color_scheme[0] + ", " + color_scheme[1] + ", " + color_scheme[2] + """)
     color_map = {\n""" )
@@ -240,21 +255,18 @@ def main():
     fps = edgeiq.FPS()
     
     # Setup the tracker for 20 frames deregister time and have a matching tolerance of 50
-    tracker = edgeiq.CentroidTracker(deregister_frames=20, max_distance=50)
-    
+    tracker = edgeiq.CentroidTracker(deregister_frames = 20, max_distance = 50)
+''')
+    if dashboard_streaming:
+        pythonAddString('''
     # Setup video cam feed
     cs = CameraServer.getInstance()
     cs.enableLogging()
-    outputStream = cs.putVideo("Vision_Out", 300, 300)''')
+    outputStream = cs.putVideo("Vision_Out", 300, 300)\n''')
 
-    if dashboard_confidence == True:
-        pythonAddString('''\n
-    # Put the default confidence on the SmartDashboard
-    sd.putString('DB/String 3', default_conf_thres)''')
-
-    pythonAddString('''\n
+    pythonAddString('''
     try:
-        with edgeiq.WebcamVideoStream(cam=0) as video_stream''')
+        with edgeiq.WebcamVideoStream(cam = 0) as video_stream''')
 
     if streamer == True:
         pythonAddString(""", \\
@@ -275,23 +287,9 @@ def main():
             # loop detection
             while True:
 """)
-    # Upcoming in Beta 0.4
-    if dashboard_confidence:
-        pythonAddString("""
-                # Grab values for confidence from SmartDashboard, if it can't, use default
-                confidence_thres = sd.getString('DB/String 3', default_conf_thres)
-
-                try:
-                    # Try converting string to a float
-                    confidence_thres = float(confidence_thres)
-                except:
-                    # If that fails, set the confidence threshold to the default value
-                    confidence_thres = default_conf_thres
-    
-
-""")
 
     pythonAddString("""
+                # Pull a frame from the camera
                 frame = video_stream.read()
 
                 # Check to see if the camera should be processing images
@@ -305,10 +303,9 @@ def main():
         pythonAddString("default_conf_thres)\n")
     
     if streamer:
-        pythonAddString("                frame = edgeiq.markup_image(frame, tracked_objects, colors = obj_detect.colors)")
+        pythonAddString("                frame = edgeiq.markup_image(frame, tracked_objects, colors = obj_detect.colors)\n")
     
     pythonAddString("""
-
                     # Update the object tracking
                     objects = tracker.update(results.predictions)
 
@@ -318,35 +315,65 @@ def main():
         pythonAddString("                    " + str(tag_list[entry]) + "Counter = 0 \n")
 
     pythonAddString(''' 
-                # Define the collections variable
-                predictions = []
-       
-       """ # ! Stopped here ..........................................................................................................................................
-       """
-                # Update the EVS NetworkTable with new values
-                for prediction in objects.items():                                                                                                                        
+                    # Define the collections variable
+                    predictions = []
 
-                    center_x, center_y = prediction.box.center
-                    # Code goes here
-                    numValues = [center_x, center_y, prediction.box.end_x, prediction.box.end_y, prediction.box.area, (prediction.confidence * 100)]
-                    
-                    for entry in range(0, len(numValues) - 1):
-                        numValues[entry] = round(numValues[entry], 3)
+                    # Update the EVS NetworkTable with new values
+                    for (object_id, prediction) in objects.items():                                                                                                                        
 
-                    numValuesArray = np.asarray(numValues) \n\n''')
+                        # Add current prediction to the total list
+                        predictions.append(prediction)                                                                                                   
 
-    
+                        # Pull the x and y of the center
+                        center_x, center_y = prediction.box.center
+
+                        # Package all of the values as an array for export
+                        number_values = [object_id, center_x, center_y, prediction.box.end_x, prediction.box.end_y, prediction.box.area, (prediction.confidence * 100)]
+                        
+                        # Round all of the values to the thousands place, as anything after is irrelevant to what we need to do
+                        for entry in range(0, len(number_values) - 1):
+                            number_values[entry] = round(number_values[entry], 3)
+
+                        # Convert the values to a numpy array for exporting
+                        number_values_array = np.asarray(number_values)  \n\n''')
+
+    # Create the classifier
     for entry in range(0, len(tag_list)):
-        buildLabelClassfier(tag_list[entry])
+        if entry == 0:
+            pythonAddString('''                        # Sort results into their respective classes
+                        if prediction.label == "''' + tag_list[entry] + '":')
+
+        else: 
+            pythonAddString('                        elif prediction.label == "' + tag_list[entry] + '":')
+    
+        pythonAddString('''\n
+                            # Make sure that we haven't exceeded the maximum number of objects per frame
+                            if (''' + tag_list[entry] + 'Counter <= ' + str(instance_list[entry] - 1) + '''):
+                                ''' + tag_list[entry] + '''Tables[''' + tag_list[entry] + '''Counter].putNumberArray('values', number_values_array)
+                                # Boolean asks to update
+                                ''' + tag_list[entry] + '''Tables[''' + tag_list[entry] + '''Counter].putBoolean('inUse', True)
+
+                            # Increase the counter
+                            ''' + tag_list[entry] + '''Counter += 1 \n\n''')
         
 
-    pythonAddString("                # Sets the value after the last value to false. The Rio will stop when it finds a False\n")
+    pythonAddString("                    # Sets the value after the last value to false. The Rio will stop when it finds a False\n")
 
     for entry in range(0, len(tag_list)):
-        pythonAddString("                " + tag_list[entry] + "Tables[" + tag_list[entry] + "Counter].putBoolean('inUse', False)\n")
+        pythonAddString('                    if (' + tag_list[entry] + 'Counter <= ' + str(instance_list[entry] - 1) + '''):
+                        ''' + tag_list[entry] + 'Tables[' + tag_list[entry] + "Counter].putBoolean('inUse', False)\n\n")
 
-    pythonAddString("\n                EVS.putBoolean('checked', False)\n")
+    pythonAddString('''                    # Notify the Rio that vision processing is done, and the data is valid again
+                    EVS.putBoolean('checked', False)\n\n''')
 
+    if dashboard_streaming:
+        pythonAddString('''                    # Do the frame labeling last, as it is lower priority
+                    frame = edgeiq.markup_image(frame, results.predictions, colors=colors)\n\n''')
+
+    pythonAddString('''                    # Flush all of the values to update on NetworkTables
+                    NetworkTables.flush()\n\n''')
+
+    # ! Needs checked
     if streamer:
         pythonAddString('''                # Generate text to display on streamer
                 text = ["Model: {}".format(obj_detect.model_id)]
@@ -360,7 +387,19 @@ def main():
 
                 streamer.send_data(frame, text))\n''')
 
-    pythonAddString("                fps.update()\n")
+    if dashboard_streaming:
+        pythonAddString('''                # Get the streaming parameters
+                width = EVS.getNumber('stream_width', default_width)
+                height = EVS.getNumber('stream_height', default_height)
+
+                # Resize the frame to the correct size
+                frame = edgeiq.resize(frame, width, height)
+
+                # Put stream on regardless of vision activation
+                outputStream.putFrame(frame)\n\n''')
+    
+    pythonAddString('''                # Update the FPS tracker
+                fps.update()\n\n''')
     
     if streamer:
         pythonAddString('''
@@ -373,7 +412,7 @@ def main():
         print("elapsed time: {:.2f}".format(fps.get_elapsed_seconds()))
         print("approx. FPS: {:.2f}".format(fps.compute_fps()))
 
-        print("Program Ending")''')
+        print("Program Ending")\n''')
 
     pythonAddString('''
 if __name__ == "__main__":
@@ -393,23 +432,6 @@ def pythonAddString(string):
     global python_code
     python_code = python_code + string
 
-def buildLabelClassfier(tagName):
-    """Builds the classifier for the python code"""
-
-    global currentTagNum
-
-    if currentTagNum == 0:
-        pythonAddString('                    if prediction.label == "' + tagName + '":')
-
-    else: 
-        pythonAddString('                    elif prediction.label == "' + tagName + '":')
-    
-    pythonAddString('''\n     
-                        ''' + tagName + '''Tables[''' + tagName + '''Counter].putNumberArray('values', numValuesArray)
-                        # Boolean asks to update
-                        ''' + tagName + '''Tables[''' + tagName + '''Counter].putBoolean('inUse', True)
-
-                        ''' + tagName + '''Counter += 1 \n\n''')
 
 def javaAddString(string):
     """Adds a string to the end of the master Java code"""
@@ -417,11 +439,12 @@ def javaAddString(string):
     global java_code
     java_code = java_code + string
 
+
 def generateJavaFile(tag_list, instance_list):
     """Generates the Java code based on input paramters"""
 
     javaAddString("""/*----------------------------------------------------------------------------*/
-/* Copyright (c) 2019 FIRST. All Rights Reserved.                             */
+/* Copyright (c) 2020 FIRST. All Rights Reserved.                             */
 /* Open Source Software - may be modified and shared by FRC teams. The code   */
 /* must be accompanied by the FIRST BSD license file in the root directory of */
 /* the project.                                                               */
@@ -429,8 +452,9 @@ def generateJavaFile(tag_list, instance_list):
 
 package frc.robot.subsystems;
 
+import java.util.ArrayList;
+
 import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.command.Subsystem;
 
@@ -451,55 +475,28 @@ import edu.wpi.first.wpilibj.command.Subsystem;
 public class EVSNetworkTables extends Subsystem {
   // Put methods for controlling this subsystem
   // here. Call these from Commands.
-  String inUse = "inUse";
-  String values = "values";
 
-  NetworkTableInstance n = NetworkTableInstance.getDefault();
-  NetworkTable evs;
-
-""")
-
-    for tag_num in range(0, len(tag_list)):
-        javaAddString("\n  // Create and assign " + tag_list[tag_num] + " tables\n")
-
-        for instance_count in range(0, instance_list[tag_num]):
-          javaAddString("  NetworkTable " + tag_list[tag_num] + str(instance_count) + ";\n")
-
-    javaAddString("""\n\n  @Override
+  @Override
   public void initDefaultCommand() {
     // Set the default command for a subsystem here.
     // setDefaultCommand(new MySpecialCommand());
     
   }
 
-  public void getVisionNetworkTable() {
+  public void getVisionTable() {
 
     n = NetworkTableInstance.getDefault();
     evs = n.getTable("EVS");
+
+  }
 """)
 
     for tag_num in range(0, len(tag_list)):
-        javaAddString("\n")
-        for instance_count in range(0, instance_list[tag_num]):
-            javaAddString("    " + tag_list[tag_num] + str(instance_count) + ' = evs.getSubTable("' + tag_list[tag_num] + str(instance_count) + '");\n')
 
-    javaAddString('''  }
+        javaAddString("""\n  public ArrayList<ArrayList<Double>> get""" + tag_list[tag_num] + """Array() {
+    getVisionTable();\n\n""")
 
-
-  public double[][] getAllObjects() {
-
-    double[][] allValues = new double[12][7];
-    return allValues;
-
-  }
-
-
-''')
-
-    for tag_num in range(0, len(tag_list)):
-
-        javaAddString("""\n  public double[][] get""" + tag_list[tag_num] + """() {
-    getVisionNetworkTable();\n\n""")
+    # ! Stopped here
 
         for instance_count in range(0, instance_list[tag_num]):
             javaAddString("    " + tag_list[tag_num] + "_inUse" + str(instance_count) + ' = ' + tag_list[tag_num] + str(instance_count) + '.getEntry(inUse);\n')
