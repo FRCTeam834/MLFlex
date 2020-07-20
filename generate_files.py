@@ -501,7 +501,6 @@ public class EVSNetworkTables extends Subsystem {
         raw_method_name = sub(r"(_|-)+", " ", raw_method_name).title().replace(" ", "")
         camel_name = raw_method_name[0].lower() + raw_method_name[1:]
         
-
         javaAddString('''
   public ArrayList<double[]> get''' + pascal_name + '''Array() {
 
