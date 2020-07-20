@@ -2,6 +2,7 @@
 # 12/4/19
 # This code will generate a python file for the coprocessor to run
 
+from re import sub
 import argparse
 import shutil
 import os
@@ -476,6 +477,8 @@ public class EVSNetworkTables extends Subsystem {
   // Put methods for controlling this subsystem
   // here. Call these from Commands.
 
+  NetworkTableInstance networkTableInstance = NetworkTableInstance.getDefault();
+
   @Override
   public void initDefaultCommand() {
     // Set the default command for a subsystem here.
@@ -483,63 +486,63 @@ public class EVSNetworkTables extends Subsystem {
     
   }
 
-  public void getVisionTable() {
+  public NetworkTable getVisionTable() {
 
-    n = NetworkTableInstance.getDefault();
-    evs = n.getTable("EVS");
+    evs = networkTableInstance.getTable("EVS");
+    return evs;
 
   }
 """)
 
     for tag_num in range(0, len(tag_list)):
 
-        javaAddString("""\n  public ArrayList<ArrayList<Double>> get""" + tag_list[tag_num] + """Array() {
-    getVisionTable();\n\n""")
-
-    # ! Stopped here
-
-        for instance_count in range(0, instance_list[tag_num]):
-            javaAddString("    " + tag_list[tag_num] + "_inUse" + str(instance_count) + ' = ' + tag_list[tag_num] + str(instance_count) + '.getEntry(inUse);\n')
-
-        javaAddString("\n    double[][] " + tag_list[tag_num] + "Values = new double[" + str(instance_count + 1) + "][7]; \n")
+        raw_method_name = tag_list[tag_num]
+        pascal_name = ''.join(x.capitalize() or '_' for x in raw_method_name.split('_'))
+        raw_method_name = sub(r"(_|-)+", " ", raw_method_name).title().replace(" ", "")
+        camel_name = raw_method_name[0].lower() + raw_method_name[1:]
         
-        javaAddString("\n    // if inUse is true, store values and check next table\n")
 
-        counter = -1
+        javaAddString('''
+  public ArrayList<double[]> get''' + pascal_name + '''Array() {
 
-        for instance_count in range(0, instance_list[tag_num]):
+    // Create a new expandable array for the tables
+    ArrayList<double[]> visionArray = new ArrayList<double[]>();
 
-            instance_count = str(instance_count)
+    // Loop through the available objects
+    for (int objectCount = 0; objectCount < ''' + str(instance_list[tag_num]) + '''; objectCount++) {
+      
+      // Create the name for the object
+      String objectName = "''' + tag_list[tag_num] + '''" + objectCount;
+      
+      // Check if the entry is valid
+      if (getVisionTable().getSubTable(objectName).getEntry("inUse").getBoolean(true)){
 
-            counter = counter + 1
+        // Create a new array for the values from NetworkTables
+        double ''' + camel_name + '''Array[] = getVisionTable().getSubTable(objectName).getEntry("values").getDoubleArray(new double[7]);
+  
+        // Add the data for the object to the array
+        visionArray.add(''' + camel_name + '''Array); 
+        
+      } else {
+ 
+        // Break the loop if no object is found
+        break;
+        
+      }
+    }
 
-            javaAddString('''
-''' + (counter * "    ") + '''    if (''' + tag_list[tag_num] + '''_inUse''' + instance_count +'''.getBoolean(false) == true) {
-''' + (counter * "    ") + '''      double ''' + tag_list[tag_num] + instance_count +'''_values_array[] = ''' + tag_list[tag_num] + '''_values''' + instance_count + '''.getDoubleArray(new double[6]);
+    // Return our findings
+    return visionArray;
 
-''' + (counter * '    ') + '''      for (int i = 0; i < 7; i++) {
-''' + (counter * '    ') + '''        if (i == 0) {
-''' + (counter * '    ') + '''          ''' + tag_list[tag_num] + '''Values[''' + instance_count + '''][i] = 0;
-''' + (counter * '    ') + '''        } else {
-''' + (counter * '    ') + '''          ''' + tag_list[tag_num] + '''Values[''' + instance_count + '''][i] = ''' + tag_list[tag_num] + instance_count + '''_values_array[i - 1];
-''' + (counter * '    ') + '''        }
-''' + (counter * '    ') + '''
-''' + (counter * '    ') + '''      }\n''')
-            
-            
-            
-        while counter > -1:
-            javaAddString('''\n''' + (counter * '''    ''') + '''    } else {\n''')
+  }
+  ''')
 
-            for instance_counter in range(0, counter + 1):
-                javaAddString('''\n''' + (counter * "    ") + '''      ''' + tag_list[tag_num] +'''Values[''' + str(instance_counter) + '''][0] = -1;''')
+    javaAddString("}")
 
-            javaAddString('''\n\n''' + (counter * '''    ''') + '''    }\n''')
-            counter = counter - 1
-
-    
     global java_code
     return java_code
 
+
 # Call my boy main
-main()
+if __name__ == "__main__":
+    main()
