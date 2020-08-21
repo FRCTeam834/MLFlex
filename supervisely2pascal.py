@@ -39,7 +39,7 @@ def main():
     parser.add_argument("-c", "--cleanup",      action = "store_true", default = False, help = "If parameter is specified, then the input Supervisely path will be automatically deleted after use")
     parser.add_argument("-d", "--debug",        action = "store_true", default = False, help = "If parameter is specified, then the temporary folders will be left for examination")
     parser.add_argument("-f", "--feedback",     action = "store_true", default = True,  help = "If parameter is specified, then the feedback will be provided during the conversion process")
-    parser.add_argument("-a", "--augmentation", action = "store_true", default = True,  help = "If parameter is specified, then additional flipped and cropped versions of the images and annotations will be included in the output")
+    parser.add_argument("-a", "--augmentation", action = "store_true", default = False,  help = "If parameter is specified, then additional flipped and cropped versions of the images and annotations will be included in the output")
     
     # Read arguments from command line 
     args = parser.parse_args()
