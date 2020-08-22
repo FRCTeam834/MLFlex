@@ -119,7 +119,7 @@ def main():
                     shutil.copy(os.path.join(input_path, filename), output_path)
 
             # Copy the other files, such as photos
-            elif file_ext == ".png":
+            elif file_ext == ".png" or file_ext == ".JPG":
 
                 # Open the image
                 image = Image.open(os.path.join(input_path, filename))
@@ -199,7 +199,7 @@ def main():
                     convert_xml_annotation(filename, output_path, whitelist, convert_list)
 
                 # Copy the other files, such as photos
-                elif file_ext == ".png":
+                elif file_ext == ".png" or file_ext == ".JPG":
 
                     # Open the image
                     image = Image.open(os.path.join(input_path, filename))
@@ -244,7 +244,7 @@ def convert_xml_annotation(filename, filepath, whitelist, convert_list):
     # Get the root of the XML
     root = tree.getroot()
 
-    # Loop through to find the filename and the objects
+    # Loop through to find the parameters that need to be changed
     for possible_object in root:
 
         # Fix the image name
@@ -263,7 +263,7 @@ def convert_xml_annotation(filename, filepath, whitelist, convert_list):
             possible_object.text = new_filename
 
         # Check for the objects in a file
-        if possible_object.tag == 'object':
+        elif possible_object.tag == 'object':
 
             # We found an object!
             for object_parameter in possible_object:
@@ -294,15 +294,16 @@ def convert_xml_annotation(filename, filepath, whitelist, convert_list):
                     if valid_object == False:
                         invalid_objects.append(possible_object)
                         
-    # Remove the invalid object
+    # Remove the invalid objects
     for invalid_object in invalid_objects:
         root.remove(invalid_object)
 
     # Remove the old XML
     os.remove(os.path.join(filepath, filename))
     
-    # Write out the new file
-    tree.write(os.path.join(filepath, filename))
+    # Write out the new file if there is more than one object left (there are 6 parts to the root file normally)
+    if len(root) >= 7:
+        tree.write(os.path.join(filepath, filename))
 
 def get_all_file_paths(directory): 
   
