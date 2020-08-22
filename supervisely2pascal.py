@@ -1,11 +1,11 @@
 # Import libraries
+from skimage.util import random_noise
 import xml.etree.ElementTree as xml
 from xml.etree import ElementTree
-from xml.dom import minidom
 from PIL import Image, ImageOps
+from xml.dom import minidom
 from zipfile import ZipFile
 from random import randint
-from skimage.util import random_noise
 import numpy as np
 import argparse
 import shutil
@@ -189,7 +189,7 @@ def convert_Supervisely_2_Pascal_VOC(input_supervisely_folder, output_folder, cl
 
         # Write each of the files to a zip
         file_name = os.path.join(output_folder, (formatted_name + ".zip"))
-        with ZipFile(file_name,'w') as zip_file: 
+        with ZipFile(file_name, 'w') as zip_file: 
 
             # Write each image 
             for file in image_file_paths: 

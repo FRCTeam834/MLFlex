@@ -2,9 +2,11 @@
 import xml.etree.ElementTree as xml
 from xml.etree import ElementTree
 from xml.dom import minidom
+from zipfile import ZipFile
 from PIL import Image
 import argparse
 import shutil
+import time
 import os
 
 # Setup constants for later use
@@ -23,14 +25,19 @@ def main():
     # Add arguments
     # String arguments
     required_args.add_argument("-i", "--input",  required = True, help = "Input path to the folder containing the data to be converted.")
-    parser.add_argument("-o", "--output", required = True, help = "Output path for the converted data. All images will be copied here as well. If nothing is specified, then the .xmls in the input directory will be modifed.")
+    parser.add_argument(       "-o", "--output", required = True, help = "Output path for the converted data. All images will be copied here as well. If nothing is specified, then the .xmls in the input directory will be modifed.")
 
     # Optional (Boolean) arguments
-    parser.add_argument("-c", "--cleanup",      action = "store_true", default = False, help = "If parameter is specified, then the input folder path will be automatically deleted after use")
-    parser.add_argument("-f", "--feedback",     action = "store_true", default = True,  help = "If parameter is specified, then the feedback will be provided during the conversion process")
-    
+    parser.add_argument("-c", "--cleanup",         action = "store_true", default = False, help = "If parameter is specified, then the input folder path will be automatically deleted after use")
+    parser.add_argument("-f", "--feedback",        action = "store_true", default = True,  help = "If parameter is specified, then the feedback will be provided during the conversion process")
+    parser.add_argument("-d", "--debug",           action = "store_true", default = False, help = "If parameter is specified, then the temporary folders will be left for examination")
+    parser.add_argument("-p", "--prepare_dataset", action = "store_true", default = False, help = "If parameter is specified, then the files will also be copied into a dataset for training. Requires the output argument.")
+
     # Read arguments from command line 
     args = parser.parse_args()
+
+    # Start timer
+    start_time = time.time()
     
     # Get the full input path
     input_path = os.path.abspath(args.input)
@@ -54,6 +61,18 @@ def main():
             if args.feedback:
                 print("Output folder exists, no need to create it")
 
+        # Check delete the image folder if it exists
+        if os.path.isdir(os.path.join(output_path, "JPEGImages")):
+            shutil.rmtree(os.path.join(output_path, "JPEGImages"))
+
+        # Check if the annotations folder exists, then delete
+        if os.path.isdir(os.path.join(output_path, "Annotations")):
+            shutil.rmtree(os.path.join(output_path, "Annotations"))
+
+        # Create temporary folders
+        os.mkdir(os.path.join(output_path, "JPEGImages"))
+        os.mkdir(os.path.join(output_path, "Annotations"))
+
         # Read the input directory's files
         input_files = os.listdir(input_path)
 
@@ -62,7 +81,7 @@ def main():
             print("Copying files")
 
         # Create an accumulator
-        current_file_index = 0
+        current_file_index = 1
 
         # Copy them over
         for filename in input_files:
@@ -72,14 +91,32 @@ def main():
 
             # Copy the .xmls, then convert them
             if file_ext == ".xml":
-                shutil.copy(os.path.join(input_path, filename), output_path)
 
-                # Convert the copied .xml
-                convert_xml_annotation(filename, output_path, whitelist, convert_list)
+                # If the specified, move the annotations to their folder for dataset creation
+                if args.prepare_dataset:
+
+                    # Copy the .xml annotation
+                    shutil.copy(os.path.join(input_path, filename), os.path.join(output_path, "Annotations"))
+
+                    # Convert the copied .xml
+                    convert_xml_annotation(filename, os.path.join(output_path, "Annotations"), whitelist, convert_list)
+
+                # Otherwise, just copy the files over to the output folder
+                else:
+
+                    # Copy the .xml annotation
+                    shutil.copy(os.path.join(input_path, filename), output_path)
+
+                    # Convert the copied .xml
+                    convert_xml_annotation(filename, output_path, whitelist, convert_list)
+
 
             # Copy the .jpgs
             elif file_ext == ".jpg":
-                shutil.copy(os.path.join(input_path, filename), output_path)
+                if args.prepare_dataset:
+                    shutil.copy(os.path.join(input_path, filename), os.path.join(output_path, "JPEGImages"))                
+                else:
+                    shutil.copy(os.path.join(input_path, filename), output_path)
 
             # Copy the other files, such as photos
             elif file_ext == ".png":
@@ -90,12 +127,16 @@ def main():
                 # Create the new filename
                 new_filename = raw_filename + '.jpg'
 
-                # Save the image
-                image.save(os.path.join(output_path, new_filename))
+                # Save the image to the dataset folder if specified, otherwise just to the output folder
+                if args.prepare_dataset:
+                    image.save(os.path.join(output_path, "JPEGImages", new_filename))
+                else:
+                    image.save(os.path.join(output_path, new_filename))
+                
 
             # Provide feedback
             if args.feedback:
-                print("Current file index: " + str(current_file_index) + "//" + str(len(input_files)))
+                print("Current file index: " + str(current_file_index) + " out of " + str(len(input_files)))
 
             # Increment the counter
             current_file_index = current_file_index + 1
@@ -104,50 +145,90 @@ def main():
         if args.cleanup:
             shutil.rmtree(input_path)
 
+        # Zip the dataset up if specified
+        if args.prepare_dataset:
+
+            # Find all of the converted files and folders
+            image_file_paths = get_all_file_paths(os.path.join(output_path, "JPEGImages"))
+            annotation_file_paths = get_all_file_paths(os.path.join(output_path, "Annotations"))
+
+            # Write each of the files to a zip
+            file_name = os.path.join(output_path, "dataset.zip")
+            with ZipFile(file_name, 'w') as zip_file: 
+
+                # Write each image 
+                for file_ in image_file_paths: 
+                    zip_file.write(file_, arcname = os.path.join("JPEGImages", os.path.basename(file_)))
+
+                # Write each annotation
+                for file_ in annotation_file_paths: 
+                    zip_file.write(file_, arcname = os.path.join("Annotations", os.path.basename(file_)))
+
+            # Clean up the output of temporary folders
+            if not args.debug:
+                shutil.rmtree(os.path.join(output_path, "JPEGImages"))
+                shutil.rmtree(os.path.join(output_path, "Annotations"))
+
     # Just modify the input folder's .xmls
     else:
+        # You can't have a dataset generated without an output folder
+        if args.prepare_dataset:
+            raise AttributeError('A dataset cannot be prepared if no output is specified.')
         
-        # Get the list of files in the input directory
-        input_files = os.listdir(input_path)
-
-        # Provide feedback
-        if args.feedback:
-            print("Modifying files")
-
-        # Create an accumulator
-        current_file_index = 0
-
-        # Copy them over
-        for filename in input_files:
-
-            # Get the file's extension
-            raw_filename, file_ext = os.path.splitext(filename)
-
-            # Convert the .xml file 
-            if file_ext == ".xml":
-                convert_xml_annotation(filename, output_path, whitelist, convert_list)
-
-            # Copy the other files, such as photos
-            elif file_ext == ".png":
-
-                # Open the image
-                image = Image.open(os.path.join(input_path, filename))
-
-                # Create the new filename
-                new_filename = raw_filename + '.jpg'
-
-                # Save the image
-                image.save(os.path.join(input_path, new_filename))
-
-                # Remove the .png
-                os.remove(os.path.join(input_path, filename))
+        # We're good, continue with the modification
+        else:
+            
+            # Get the list of files in the input directory
+            input_files = os.listdir(input_path)
 
             # Provide feedback
             if args.feedback:
-                print("Current file index: " + str(current_file_index) + "/" + str(len(input_files)))
+                print("Modifying files")
 
-            # Increment the counter
-            current_file_index = current_file_index + 1
+            # Create a counter
+            current_file_index = 1
+
+            # Copy them over
+            for filename in input_files:
+
+                # Get the file's extension
+                raw_filename, file_ext = os.path.splitext(filename)
+
+                # Convert the .xml file 
+                if file_ext == ".xml":
+                    convert_xml_annotation(filename, output_path, whitelist, convert_list)
+
+                # Copy the other files, such as photos
+                elif file_ext == ".png":
+
+                    # Open the image
+                    image = Image.open(os.path.join(input_path, filename))
+
+                    # Create the new filename
+                    new_filename = raw_filename + '.jpg'
+
+                    # Save the image
+                    image.save(os.path.join(input_path, new_filename))
+
+                    # Remove the .png
+                    os.remove(os.path.join(input_path, filename))
+
+                # Provide feedback
+                if args.feedback:
+                    print("Current file index: " + str(current_file_index) + " out of " + str(len(input_files)))
+
+                # Increment the counter
+                current_file_index = current_file_index + 1
+
+    # End the counter, the operation has completed
+    end_time = time.time()
+
+    # Calculate the time taken
+    time_taken = end_time - start_time
+
+    # Print out time if feedback is enabled
+    if args.feedback:
+        print("Conversion process took " + str(round(time_taken, 2)) + "seconds")
 
 
 
@@ -194,9 +275,6 @@ def convert_xml_annotation(filename, filepath, whitelist, convert_list):
 
                     # Object is invalid, it needs to be deleted
                     if valid_object == False:
-                        print("Removing: " + str(possible_object))
-                        print("Name: " + possible_object.tag)
-                        print("Object name: " + possible_object.getchildren()[0].text)
                         invalid_objects.append(possible_object)
                         
     # Remove the invalid object
@@ -209,5 +287,19 @@ def convert_xml_annotation(filename, filepath, whitelist, convert_list):
     # Write out the new file
     tree.write(os.path.join(filepath, filename))
 
+def get_all_file_paths(directory): 
+  
+    # Create empty file paths list 
+    file_paths = []
+  
+    # Get all of the files in the directory
+    for root, directories, files in os.walk(directory):
+        for filename in files:
+            # Join the two strings in order to form the full filepath.
+            filepath = os.path.join(root, filename)
+            file_paths.append(filepath)
+  
+    # Return all file paths 
+    return file_paths
 
 main()
