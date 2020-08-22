@@ -244,10 +244,27 @@ def convert_xml_annotation(filename, filepath, whitelist, convert_list):
     # Get the root of the XML
     root = tree.getroot()
 
+    # Loop through to find the filename and the objects
     for possible_object in root:
-        # Check the objects in a file
 
+        # Fix the image name
+        if possible_object.tag == 'filename':
+            
+            # Pull the old image name
+            old_image_name = possible_object.text
+
+            # Get the image's extension
+            raw_filename, file_ext = os.path.splitext(old_image_name)
+
+            # Adjust it, removing the .png and replacing it with .jpg
+            new_filename = raw_filename + '.jpg'
+
+            # Save the new value
+            possible_object.text = new_filename
+
+        # Check for the objects in a file
         if possible_object.tag == 'object':
+
             # We found an object!
             for object_parameter in possible_object:
 
