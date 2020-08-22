@@ -228,7 +228,7 @@ def main():
 
     # Print out time if feedback is enabled
     if args.feedback:
-        print("Conversion process took " + str(round(time_taken, 2)) + "seconds")
+        print("Conversion process took " + str(round(time_taken, 2)) + " seconds")
 
 
 
