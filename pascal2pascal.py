@@ -99,7 +99,7 @@ def main():
                     shutil.copy(os.path.join(input_path, filename), os.path.join(output_path, "Annotations"))
 
                     # Convert the copied .xml
-                    convert_xml_annotation(filename, os.path.join(output_path, "Annotations"), whitelist, convert_list)
+                    convert_xml_annotation(filename, os.path.join(output_path, "Annotations"), whitelist, convert_list, args.prepare_dataset)
 
                 # Otherwise, just copy the files over to the output folder
                 else:
@@ -108,7 +108,7 @@ def main():
                     shutil.copy(os.path.join(input_path, filename), output_path)
 
                     # Convert the copied .xml
-                    convert_xml_annotation(filename, output_path, whitelist, convert_list)
+                    convert_xml_annotation(filename, output_path, whitelist, convert_list, args.prepare_dataset)
 
 
             # Copy the .jpgs
@@ -196,7 +196,7 @@ def main():
 
                 # Convert the .xml file 
                 if file_ext == ".xml":
-                    convert_xml_annotation(filename, output_path, whitelist, convert_list)
+                    convert_xml_annotation(filename, output_path, whitelist, convert_list, args.prepare_dataset)
 
                 # Copy the other files, such as photos
                 elif file_ext == ".png" or file_ext == ".JPG":
@@ -233,7 +233,7 @@ def main():
 
 
 # Function for converting the .xmls
-def convert_xml_annotation(filename, filepath, whitelist, convert_list):
+def convert_xml_annotation(filename, filepath, whitelist, convert_list, prepare_dataset):
 
     # Accumulator for later deletions
     invalid_objects = []
@@ -247,8 +247,17 @@ def convert_xml_annotation(filename, filepath, whitelist, convert_list):
     # Loop through to find the parameters that need to be changed
     for possible_object in root:
 
+        # Fix the folder name
+        if possible_object.tag == 'folder':
+
+            # Only update it with JPEGImages if that's the new folder, otherwise, pull it from the path
+            if prepare_dataset:
+                possible_object.text = "JPEGImages"
+            else:
+                possible_object.text = os.path.basename(filepath)
+
         # Fix the image name
-        if possible_object.tag == 'filename':
+        elif possible_object.tag == 'filename':
             
             # Pull the old image name
             old_image_name = possible_object.text
@@ -261,6 +270,10 @@ def convert_xml_annotation(filename, filepath, whitelist, convert_list):
 
             # Save the new value
             possible_object.text = new_filename
+
+        # Fix the file path
+        elif possible_object.tag == 'path':
+            possible_object.text = os.path.join(filepath, filename)
 
         # Check for the objects in a file
         elif possible_object.tag == 'object':
