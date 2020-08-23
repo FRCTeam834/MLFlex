@@ -10,8 +10,8 @@ import time
 import os
 
 # Setup constants for later use
-whitelist =    ['red_robot', 'blue_robot', 'red_power_port_high_goal', 'blue_power_port_high_goal', 'power_cell', 'color_wheel']
-convert_list = ['Red_Robot', 'Blue_Robot', 'Goal',                     'Goal',                      'Power_Cell', 'Color_Wheel']
+whitelist =    ['red_power_port_high_goal', 'blue_power_port_high_goal', 'power_cell']
+convert_list = ['Goal',                     'Goal',                      'Power_Cell']
 
 
 def main():
