@@ -1,8 +1,13 @@
+# Written by Christian Piper
+# First Robotics Team 834
+# Created: 8/17/20
+
 # Import libraries
 import xml.etree.ElementTree as xml
 from xml.etree import ElementTree
 from xml.dom import minidom
 from zipfile import ZipFile
+import common_functions
 from PIL import Image
 import argparse
 import shutil
@@ -149,8 +154,8 @@ def main():
         if args.prepare_dataset:
 
             # Find all of the converted files and folders
-            image_file_paths = get_all_file_paths(os.path.join(output_path, "JPEGImages"))
-            annotation_file_paths = get_all_file_paths(os.path.join(output_path, "Annotations"))
+            image_file_paths = common_functions.get_all_file_paths(os.path.join(output_path, "JPEGImages"))
+            annotation_file_paths = common_functions.get_all_file_paths(os.path.join(output_path, "Annotations"))
 
             # Write each of the files to a zip
             file_name = os.path.join(output_path, "dataset.zip")
@@ -318,19 +323,5 @@ def convert_xml_annotation(filename, filepath, whitelist, convert_list, prepare_
     if len(root) >= 7:
         tree.write(os.path.join(filepath, filename))
 
-def get_all_file_paths(directory): 
-  
-    # Create empty file paths list 
-    file_paths = []
-  
-    # Get all of the files in the directory
-    for root, directories, files in os.walk(directory):
-        for filename in files:
-            # Join the two strings in order to form the full filepath.
-            filepath = os.path.join(root, filename)
-            file_paths.append(filepath)
-  
-    # Return all file paths 
-    return file_paths
 
 main()

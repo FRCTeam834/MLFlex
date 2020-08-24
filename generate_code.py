@@ -1,6 +1,6 @@
-# Christian Piper
-# 12/4/19
-# This code will generate a python file for the coprocessor to run
+# Written by Christian Piper and William Corvino
+# First Robotics Team 834
+# Created: 12/4/2019
 
 from re import sub
 import argparse

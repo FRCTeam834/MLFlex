@@ -1,9 +1,11 @@
+# Written by Christian Piper and William Corvino
+# First Robotics Team 834
+# Created: 7/2/20
+
 # Import libraries
 from skimage.util import random_noise
-import xml.etree.ElementTree as xml
-from xml.etree import ElementTree
 from PIL import Image, ImageOps
-from xml.dom import minidom
+import common_functions
 from zipfile import ZipFile
 from random import randint
 import numpy as np
@@ -180,8 +182,8 @@ def convert_Supervisely_2_Pascal_VOC(input_supervisely_folder, output_folder, cl
 
     if create_zip:
         # Find all of the converted files and folders
-        image_file_paths = get_all_file_paths(os.path.join(output_folder, "JPEGImages"))
-        annotation_file_paths = get_all_file_paths(os.path.join(output_folder, "Annotations"))
+        image_file_paths = common_functions.get_all_file_paths(os.path.join(output_folder, "JPEGImages"))
+        annotation_file_paths = common_functions.get_all_file_paths(os.path.join(output_folder, "Annotations"))
 
         # Get the project name, then replace the spaces with underscores
         supervisely_project_name = os.path.basename(input_supervisely_folder)
@@ -237,7 +239,7 @@ def convert_original_image(filename, input_folder_path, output_folder_path):
         image.save(os.path.join(output_folder_path, "JPEGImages", (new_filename + ".jpg")))
 
         # Build an xml with the old file
-        build_xml_annotation(image_objects, (new_filename + ".jpg"), output_folder_path)
+        common_functions.build_xml_annotation(image_objects, (new_filename + ".jpg"), output_folder_path)
 
 
 def flip_image(filename, input_folder_path, output_folder_path):
@@ -272,7 +274,7 @@ def flip_image(filename, input_folder_path, output_folder_path):
             object_[3] = x_min_offset
 
         # Save a new xml file for the annotation data
-        build_xml_annotation(image_objects, new_filename, output_folder_path)
+        common_functions.build_xml_annotation(image_objects, new_filename, output_folder_path)
 
 
 def get_image_objects(image_name, input_supervisely_folder):
@@ -298,102 +300,6 @@ def get_image_objects(image_name, input_supervisely_folder):
         objects.append([object_name, left, upper, right, lower])
 
     return objects 
-
-
-def prettify_xml(elem):
-    """Return a pretty-printed XML string for the Element.
-    """
-    rough_string = ElementTree.tostring(elem, 'utf-8')
-    reparsed = minidom.parseString(rough_string)
-    return reparsed.toprettyxml(indent="  ")
-
-
-def build_xml_annotation(objects, image_name, output_folder):
-
-    # Check to see if we have any labels, if not, then don't do anything
-    if objects:
-
-        # Get the file's name for splitting
-        raw_image_name, file_ext = os.path.splitext(image_name)
-
-        # Create master annotation element
-        annotation = xml.Element('annotation')
-
-        # Get folder name (not important)
-        folder = xml.SubElement(annotation, 'folder')
-        folder.text = os.path.basename( os.path.join(output_folder, "JPEGImages") )
-
-        # Filename
-        filename = xml.SubElement(annotation, 'filename')
-        filename.text = image_name
-
-        # Path 
-        path = xml.SubElement(annotation, 'path')
-        path.text = os.path.join(output_folder, "JPEGImages", image_name)
-
-        # Database (not important)
-        source = xml.SubElement(annotation, 'source')
-        database = xml.SubElement(source, 'database')
-        database.text = "None"
-
-        # Open the image to get parameters from it
-        image = Image.open(os.path.join(output_folder, "JPEGImages", image_name))
-        image_width, image_height = image.size
-
-        # Image size parameters
-        size = xml.SubElement(annotation, 'size')
-        width = xml.SubElement(size, 'width')
-        width.text = str(image_width)
-        height = xml.SubElement(size, 'height')
-        height.text = str(image_height)
-
-        # Depth is 3 for color, 1 for black and white
-        depth = xml.SubElement(size, 'depth')
-        depth.text = str(3)
-
-        # Segmented (not important)
-        segmented = xml.SubElement(annotation, 'segmented')
-        segmented.text = str(0)
-    
-        # Objects... where the fun begins
-        for object_list in objects:
-            # Declare an object
-            object_ = xml.SubElement(annotation, 'object')
-
-            # Name
-            name = xml.SubElement(object_, 'name')
-            name.text = object_list[0]
-
-            # Bounding box
-            bounding_box = xml.SubElement(object_, 'bndbox')
-            x_min = xml.SubElement(bounding_box, 'xmin')
-            y_min = xml.SubElement(bounding_box, 'ymin')
-            x_max = xml.SubElement(bounding_box, 'xmax')
-            y_max = xml.SubElement(bounding_box, 'ymax')
-            x_min.text = str(object_list[1])
-            y_min.text = str(object_list[2])
-            x_max.text = str(object_list[3])
-            y_max.text = str(object_list[4])
-        
-        with open(os.path.join(output_folder, "Annotations", (raw_image_name + '.xml')), 'w') as xml_file:
-            xml_file.write(prettify_xml(annotation))
-            xml_file.close()
-    
-
-def get_all_file_paths(directory): 
-  
-    # Create empty file paths list 
-    file_paths = []
-  
-    # Get all of the files in the directory
-    for root, directories, files in os.walk(directory):
-        for filename in files:
-            # Join the two strings in order to form the full filepath.
-            filepath = os.path.join(root, filename)
-            file_paths.append(filepath)
-  
-    # Return all file paths 
-    return file_paths
 
 
 def crop_image(filename, input_folder_path, output_folder_path, allowed_percent_crop_lower, allowed_percent_crop_upper, minimum_box_percent):
@@ -530,7 +436,7 @@ def crop_image(filename, input_folder_path, output_folder_path, allowed_percent_
             current_object = current_object + 1
 
         # Save a new xml file for the annotation data
-        build_xml_annotation(image_objects, new_filename, output_folder_path)
+        common_functions.build_xml_annotation(image_objects, new_filename, output_folder_path)
 
 
 def gaussian_noise_image(filename, input_folder_path, output_folder_path):
@@ -564,7 +470,7 @@ def gaussian_noise_image(filename, input_folder_path, output_folder_path):
         gaussian_noise_image.save(os.path.join(output_folder_path, "JPEGImages", new_filename))
 
         # Save a new xml file for the annotation data
-        build_xml_annotation(image_objects, new_filename, output_folder_path)
+        common_functions.build_xml_annotation(image_objects, new_filename, output_folder_path)
 
 
 main()
