@@ -152,27 +152,7 @@ def main():
 
         # Zip the dataset up if specified
         if args.prepare_dataset:
-
-            # Find all of the converted files and folders
-            image_file_paths = common_functions.get_all_file_paths(os.path.join(output_path, "JPEGImages"))
-            annotation_file_paths = common_functions.get_all_file_paths(os.path.join(output_path, "Annotations"))
-
-            # Write each of the files to a zip
-            file_name = os.path.join(output_path, "dataset.zip")
-            with ZipFile(file_name, 'w') as zip_file: 
-
-                # Write each image 
-                for file_ in image_file_paths: 
-                    zip_file.write(file_, arcname = os.path.join("JPEGImages", os.path.basename(file_)))
-
-                # Write each annotation
-                for file_ in annotation_file_paths: 
-                    zip_file.write(file_, arcname = os.path.join("Annotations", os.path.basename(file_)))
-
-            # Clean up the output of temporary folders
-            if not args.debug:
-                shutil.rmtree(os.path.join(output_path, "JPEGImages"))
-                shutil.rmtree(os.path.join(output_path, "Annotations"))
+            common_functions.zip_dataset(output_path, "dataset", args.debug)
 
     # Just modify the input folder's .xmls
     else:

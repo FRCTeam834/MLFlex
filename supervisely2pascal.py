@@ -145,8 +145,10 @@ def convert_Supervisely_2_Pascal_VOC(input_supervisely_folder, output_folder, cl
 
     # Get all of the files in the input directory
     for filename in os.listdir(os.path.join(input_supervisely_folder, 'img')):
+
         # Make sure that each file is an image
         for image_format in supported_formats:
+
             # Check if the image format is an image
             if filename.endswith(image_format):
                 image_name_list.append(filename)
@@ -158,6 +160,7 @@ def convert_Supervisely_2_Pascal_VOC(input_supervisely_folder, output_folder, cl
     # Declare counter and begin the conversion process
     current_image_index = 0
     for image_name in image_name_list:
+
         # Convert the original image
         convert_original_image(image_name, input_supervisely_folder, output_folder)
 
@@ -180,34 +183,19 @@ def convert_Supervisely_2_Pascal_VOC(input_supervisely_folder, output_folder, cl
         if feedback:
             print("Progress: " + str(current_image_index) + "/" + str(len(image_name_list)))
 
+    # If specified, convert the object name, then zip the files into a dataset
     if create_zip:
-        # Find all of the converted files and folders
-        image_file_paths = common_functions.get_all_file_paths(os.path.join(output_folder, "JPEGImages"))
-        annotation_file_paths = common_functions.get_all_file_paths(os.path.join(output_folder, "Annotations"))
 
         # Get the project name, then replace the spaces with underscores
         supervisely_project_name = os.path.basename(input_supervisely_folder)
         formatted_name = supervisely_project_name.replace(" ", "_")
 
-        # Write each of the files to a zip
-        file_name = os.path.join(output_folder, (formatted_name + ".zip"))
-        with ZipFile(file_name, 'w') as zip_file: 
-
-            # Write each image 
-            for file in image_file_paths: 
-                zip_file.write(file, arcname = os.path.join("JPEGImages", os.path.basename(file)))
-
-            # Write each annotation
-            for file in annotation_file_paths: 
-                zip_file.write(file, arcname = os.path.join("Annotations", os.path.basename(file)))
-
-        # Clean up the output of temporary folders
-        if not debug:
-            shutil.rmtree(os.path.join(output_folder, "JPEGImages"))
-            shutil.rmtree(os.path.join(output_folder, "Annotations"))
+        # Zip the files into a dataset
+        common_functions.zip_dataset(output_folder, formatted_name, debug)
 
     # Clean up the Supervisely folder as well if indicated
     if cleanup:
+
         # Need to delete the input folder
         shutil.rmtree(input_supervisely_folder)
 
@@ -227,6 +215,7 @@ def convert_original_image(filename, input_folder_path, output_folder_path):
 
     # Check if the image has valid data. If not, it can't be used
     if image_objects:
+
         # Get the file's name for splitting
         raw_filename, file_ext = os.path.splitext(filename)
         
@@ -243,6 +232,7 @@ def convert_original_image(filename, input_folder_path, output_folder_path):
 
 
 def flip_image(filename, input_folder_path, output_folder_path):
+
     # Get the file's name for splitting
     raw_filename, file_ext = os.path.splitext(filename)
     
@@ -278,6 +268,7 @@ def flip_image(filename, input_folder_path, output_folder_path):
 
 
 def get_image_objects(image_name, input_supervisely_folder):
+
     # Create a accumulator
     objects = []
 
@@ -303,6 +294,7 @@ def get_image_objects(image_name, input_supervisely_folder):
 
 
 def crop_image(filename, input_folder_path, output_folder_path, allowed_percent_crop_lower, allowed_percent_crop_upper, minimum_box_percent):
+
     # Get the file's name for splitting
     raw_filename, file_ext = os.path.splitext(filename)
 
@@ -344,11 +336,13 @@ def crop_image(filename, input_folder_path, output_folder_path, allowed_percent_
         # Apply adjustments
         current_object = 0
         for object_ in image_objects:
+
             # Create a check that will delete the object if it is no longer on screen
             invalid_coordinates = False
 
             # Cycle through the coordinates, adjusting and checking each one
             for coordinate_num in range(1, 5):
+
                 if (coordinate_num % 2) == 0:
                     # Number is even, and is a Y coordinate
                     object_[coordinate_num] = object_[coordinate_num] - upper_adjust
@@ -364,9 +358,12 @@ def crop_image(filename, input_folder_path, output_folder_path, allowed_percent_
             # X
             # Right side checking
             if object_[1] > cropped_image_width:
+
                 # Whole box is out of range to the right
                 invalid_coordinates = True
+
             elif object_[3] > cropped_image_width:
+
                 # Only the right of the box is out of range, we can just move the right coord to meet the right side of the image
                 object_[3] = cropped_image_width
 
@@ -375,14 +372,18 @@ def crop_image(filename, input_folder_path, output_folder_path, allowed_percent_
                 smallest_allowable_width = cropped_image_width * (minimum_box_percent / 100)
 
                 if box_width < smallest_allowable_width:
+
                     # Box is too small
                     invalid_coordinates = True
 
             # Left side checking
             elif object_[3] < 0:
+
                 # Whole box is out of range to the left
                 invalid_coordinates = True
+
             elif object_[1] < 0:
+
                 # Only the left of the box is out of range, we can just move the left coord to meet the left side of the image
                 object_[3] = cropped_image_width
                 
@@ -391,15 +392,19 @@ def crop_image(filename, input_folder_path, output_folder_path, allowed_percent_
                 smallest_allowable_width = cropped_image_width * (minimum_box_percent / 100)
 
                 if box_width < smallest_allowable_width:
+
                     # Box is too small
                     invalid_coordinates = True
 
             # Y
             # Bottom checking
             if object_[2] > cropped_image_height:
+
                 # Whole box is out of range
                 invalid_coordinates = True
+
             elif object_[4] > cropped_image_height:
+
                 # Only the bottom of the box is out of range, we can just move the lower coord to meet the bottom of the image
                 object_[4] = cropped_image_height
 
@@ -413,9 +418,12 @@ def crop_image(filename, input_folder_path, output_folder_path, allowed_percent_
 
             # Top checking
             elif object_[4] < 0:
+
                 # Whole box is out of range
                 invalid_coordinates = True
+
             elif object_[2] < 0:
+
                 # Only the top of the box is out of range, we can just move the upper coord to meet the top of the image
                 object_[2] = cropped_image_height
 
@@ -424,9 +432,9 @@ def crop_image(filename, input_folder_path, output_folder_path, allowed_percent_
                 smallest_allowable_height = cropped_image_height * (minimum_box_percent / 100)
 
                 if box_height < smallest_allowable_height:
+
                     # Box is too small
                     invalid_coordinates = True
-
 
             # Delete the coordinate if it is invalid
             if invalid_coordinates:

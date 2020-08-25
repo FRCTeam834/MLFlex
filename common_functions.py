@@ -114,3 +114,32 @@ def prettify_xml(elem):
 
     # Add spacing to string to fix formatting, then return it
     return reparsed.toprettyxml(indent="  ")
+
+
+def zip_dataset(output_path, zip_filename, debug):
+
+    # Import libaries
+    from zipfile import ZipFile
+    import shutil
+    import os
+
+    # Find all of the converted files and folders
+    image_file_paths = get_all_file_paths(os.path.join(output_path, "JPEGImages"))
+    annotation_file_paths = get_all_file_paths(os.path.join(output_path, "Annotations"))
+
+    # Write each of the files to a zip
+    file_name = os.path.join(output_path, zip_filename + ".zip")
+    with ZipFile(file_name, 'w') as zip_file: 
+
+        # Write each image 
+        for file_ in image_file_paths: 
+            zip_file.write(file_, arcname = os.path.join("JPEGImages", os.path.basename(file_)))
+
+        # Write each annotation
+        for file_ in annotation_file_paths: 
+            zip_file.write(file_, arcname = os.path.join("Annotations", os.path.basename(file_)))
+
+    # Clean up the output of temporary folders
+    if not debug:
+        shutil.rmtree(os.path.join(output_path, "JPEGImages"))
+        shutil.rmtree(os.path.join(output_path, "Annotations"))
