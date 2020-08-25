@@ -28,7 +28,6 @@ def convert_video(video_filename, input_path, output_path, frame_skip, feedback)
 
         # Skip over the frames we don't need
         for frame_skip_count in range(frame_skip):
-            print()
 
             # Read the frame
             grabbed, frame = video.read()
@@ -44,7 +43,6 @@ def convert_video(video_filename, input_path, output_path, frame_skip, feedback)
 
             # Save the image
             cv2.imwrite(image_name, frame)
-            print()
 
             # Provide feedback
             if feedback:
