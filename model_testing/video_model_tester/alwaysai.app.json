@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "start": "python app.py"
+  },
+  "models": {
+    "alwaysai/ssd_mobilenet_v1_coco_2018_01_28": 6,
+    "CAP1Sup/test_2021_all_augmentations": 3,
+    "CAP1Sup/test_2021_crop_flip_images": 3,
+    "CAP1Sup/FRC_2020_834_v2": 6
+  }
+}
