@@ -132,4 +132,4 @@ def pascal2ndjson():
 
         # Write out the new file if there is more than one object left (there are 6 parts to the root file normally)
         if len(root) >= 7:
-            common_functions.build_ndjson_annotation(tree)
+            common_functions.build_ndjson_annotation()
