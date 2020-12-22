@@ -19,7 +19,7 @@ whitelist =    ['red_power_port_high_goal', 'blue_power_port_high_goal', 'power_
 convert_list = ['Goal',                     'Goal',                      'Power_Cell']
 
 
-def main():
+def pascal2pascal():
 
     # Initialize parser 
     parser = argparse.ArgumentParser(description = 'MLFlex: A quick and easy annotation manipulation tool. Annotation manipulation program') 
@@ -304,4 +304,4 @@ def convert_xml_annotation(filename, filepath, whitelist, convert_list, prepare_
         tree.write(os.path.join(filepath, filename))
 
 
-main()
+pascal2pascal()

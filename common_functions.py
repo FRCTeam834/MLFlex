@@ -2,6 +2,16 @@
 # First Robotics Team 834
 # Created: 8/23/20
 
+# Import required libraries
+from skimage.util import random_noise
+from PIL import Image, ImageOps
+from zipfile import ZipFile
+from random import randint
+import numpy as np
+import json
+import os
+
+# Gets all of the file paths in a directory, then returns a list of paths
 def get_all_file_paths(directory):
 
     # Import necessary libaries
@@ -20,7 +30,7 @@ def get_all_file_paths(directory):
     # Return all file paths 
     return file_paths
 
-
+# Builds an XML annotation from an object array, the name of the image, and the output folder
 def build_xml_annotation(objects, image_name, output_folder):
 
     # Import libaries
@@ -115,7 +125,7 @@ def prettify_xml(elem):
     # Add spacing to string to fix formatting, then return it
     return reparsed.toprettyxml(indent="  ")
 
-
+# Zips a PascalVOC datset up for uploading and downloading
 def zip_dataset(output_path, zip_filename, debug):
 
     # Import libaries
@@ -143,3 +153,280 @@ def zip_dataset(output_path, zip_filename, debug):
     if not debug:
         shutil.rmtree(os.path.join(output_path, "JPEGImages"))
         shutil.rmtree(os.path.join(output_path, "Annotations"))
+
+# Flips the input image horizontally. Takes in the filename (in the input folder) and the input and folders
+def flip_image(filename, input_folder_path, output_folder_path):
+
+    # Get the file's name for splitting
+    raw_filename, file_ext = os.path.splitext(filename)
+    
+    # Get the annotation data from the respective annotation file
+    image_objects = get_Supervisely_objects(filename, input_folder_path)
+
+    # Check if the image has valid data. If not, it can't be used
+    if image_objects:
+
+        # Create an image for manipulation
+        image = Image.open(os.path.join(input_folder_path, 'img/', filename))
+
+        # Flip the image
+        flipped_image = ImageOps.mirror(image)
+
+        image_width, image_height = flipped_image.size
+
+        # Save the output image to the specified directory
+        new_filename = os.path.basename(input_folder_path) + "_" + raw_filename + "_flipped.jpg"
+        new_filename = new_filename.replace(" ", "_")
+        flipped_image.save(os.path.join(output_folder_path, "JPEGImages", new_filename))
+
+        # Apply adjustments
+        for object_ in image_objects:
+            # Flip only the X coords, not the Ys
+            x_min_offset = image_width - object_[1]
+            x_max_offset = image_width - object_[3]
+            object_[1] = x_max_offset
+            object_[3] = x_min_offset
+
+        # Save a new xml file for the annotation data
+        build_xml_annotation(image_objects, new_filename, output_folder_path)
+
+# Gets all of the objects in a Supervisely annotation
+def get_Supervisely_objects(image_name, input_supervisely_folder):
+
+    # Create a accumulator
+    objects = []
+
+    # Set up and open the json annotation file
+    with open(os.path.join(input_supervisely_folder, 'ann', (image_name + '.json'))) as annotation_file:
+        annotations = json.load(annotation_file)
+
+    # For each of the objects in the annotation file, add a listing to the accumulator
+    for object_ in annotations["objects"]:
+        # Grab the name of the object
+        object_name = object_["classTitle"]
+
+        # Navigate to the correct level of the dictionary and grab the point data
+        points = object_["points"]
+        exterior_points = points["exterior"]
+        left, upper = exterior_points[0]
+        right, lower = exterior_points[1]
+
+        # Add the object to the list of objects
+        objects.append([object_name, left, upper, right, lower])
+
+    return objects 
+
+# Crops an image using the filename (in input folder), the output, and the allowed crop percentages. It also has a safety of a minimum percentage of original size
+def crop_image(filename, input_folder_path, output_folder_path, allowed_percent_crop_lower, allowed_percent_crop_upper, minimum_box_percent):
+
+    # Get the file's name for splitting
+    raw_filename, file_ext = os.path.splitext(filename)
+
+    # Get the annotation data from the respective annotation file
+    image_objects = get_Supervisely_objects(filename, input_folder_path)
+
+    # Check if the image has valid data. If not, it can't be used
+    if image_objects:
+
+        # Create an image for manipulation
+        image = Image.open(os.path.join(input_folder_path, 'img/', filename))
+
+        # Get the bounding box of the image
+        (left, upper, right, lower) = image.getbbox()
+
+        # Get random values for the adjustment by getting a random percent
+        left_adjust = right * (randint(allowed_percent_crop_lower, allowed_percent_crop_upper) / 100)
+        upper_adjust = lower * (randint(allowed_percent_crop_lower, allowed_percent_crop_upper) / 100)
+        right_adjust = right * (randint(allowed_percent_crop_lower, allowed_percent_crop_upper) / 100)
+        lower_adjust = lower * (randint(allowed_percent_crop_lower, allowed_percent_crop_upper) / 100)
+
+        # Adjust the coordinates for the changes
+        left = left + left_adjust
+        upper = upper + upper_adjust
+        right = right - right_adjust
+        lower = lower - lower_adjust
+
+        # Crop the image to the specified size
+        cropped_image = image.crop((left, upper, right, lower))
+
+        # Get the size of the image for sanity checking
+        cropped_image_width, cropped_image_height = cropped_image.size
+
+        # Save the output image to the specified directory
+        new_filename = os.path.basename(input_folder_path) + "_" + raw_filename + "_cropped.jpg"
+        new_filename = new_filename.replace(" ", "_")
+        cropped_image.save(os.path.join(output_folder_path, "JPEGImages", new_filename))
+
+        # Apply adjustments
+        current_object = 0
+        for object_ in image_objects:
+
+            # Create a check that will delete the object if it is no longer on screen
+            invalid_coordinates = False
+
+            # Cycle through the coordinates, adjusting and checking each one
+            for coordinate_num in range(1, 5):
+
+                if (coordinate_num % 2) == 0:
+                    # Number is even, and is a Y coordinate
+                    object_[coordinate_num] = object_[coordinate_num] - upper_adjust
+
+                else:
+                    # Number is odd, is an X coordinate
+                    object_[coordinate_num] = object_[coordinate_num] - left_adjust
+
+
+            # Sanity checking to make sure the the coords are still valid
+            # Check to see if the coordinate is out of bounds
+
+            # X
+            # Right side checking
+            if object_[1] > cropped_image_width:
+
+                # Whole box is out of range to the right
+                invalid_coordinates = True
+
+            elif object_[3] > cropped_image_width:
+
+                # Only the right of the box is out of range, we can just move the right coord to meet the right side of the image
+                object_[3] = cropped_image_width
+
+                # Make sure that the adjusted box isn't too small
+                box_width = object_[3] - object_[1]
+                smallest_allowable_width = cropped_image_width * (minimum_box_percent / 100)
+
+                if box_width < smallest_allowable_width:
+
+                    # Box is too small
+                    invalid_coordinates = True
+
+            # Left side checking
+            elif object_[3] < 0:
+
+                # Whole box is out of range to the left
+                invalid_coordinates = True
+
+            elif object_[1] < 0:
+
+                # Only the left of the box is out of range, we can just move the left coord to meet the left side of the image
+                object_[3] = cropped_image_width
+                
+                # Make sure that the adjusted box isn't too small
+                box_width = object_[3] - object_[1]
+                smallest_allowable_width = cropped_image_width * (minimum_box_percent / 100)
+
+                if box_width < smallest_allowable_width:
+
+                    # Box is too small
+                    invalid_coordinates = True
+
+            # Y
+            # Bottom checking
+            if object_[2] > cropped_image_height:
+
+                # Whole box is out of range
+                invalid_coordinates = True
+
+            elif object_[4] > cropped_image_height:
+
+                # Only the bottom of the box is out of range, we can just move the lower coord to meet the bottom of the image
+                object_[4] = cropped_image_height
+
+                # Make sure that the box isn't too small
+                box_height = object_[4] - object_[2]
+                smallest_allowable_height = cropped_image_height * (minimum_box_percent / 100)
+
+                if box_height < smallest_allowable_height:
+                    # Box is too small
+                    invalid_coordinates = True
+
+            # Top checking
+            elif object_[4] < 0:
+
+                # Whole box is out of range
+                invalid_coordinates = True
+
+            elif object_[2] < 0:
+
+                # Only the top of the box is out of range, we can just move the upper coord to meet the top of the image
+                object_[2] = cropped_image_height
+
+                # Make sure that the box isn't too small
+                box_height = object_[4] - object_[2]
+                smallest_allowable_height = cropped_image_height * (minimum_box_percent / 100)
+
+                if box_height < smallest_allowable_height:
+
+                    # Box is too small
+                    invalid_coordinates = True
+
+            # Delete the coordinate if it is invalid
+            if invalid_coordinates:
+                image_objects.pop(current_object)
+            
+            # Continue to count the current object
+            current_object = current_object + 1
+
+        # Save a new xml file for the annotation data
+        build_xml_annotation(image_objects, new_filename, output_folder_path)
+
+# Adds Guassian (basically random) noise to an image with the image's name (must be in the input folder), input folder, and output folder
+def gaussian_noise_image(filename, input_folder_path, output_folder_path):
+
+    # Get the file's name for splitting
+    raw_filename, file_ext = os.path.splitext(filename)
+    
+    # Get the annotation data from the respective annotation file
+    image_objects = get_Supervisely_objects(filename, input_folder_path)
+
+    # Check if the image has valid data. If not, it can't be used
+    if image_objects:
+
+        # Create an image for manipulation
+        image = Image.open(os.path.join(input_folder_path, 'img/', filename))
+
+        # Convert the image to an array for manipulation
+        image_array = np.asarray(image)
+
+        # random_noise() method will convert image in [0, 255] to [0, 1.0],
+        # inherently it use np.random.normal() to create normal distribution
+        # and adds the generated noised back to image
+        noise_img = random_noise(image_array, mode = 'gaussian', var = 0.05**2)
+        noise_img = (255 * noise_img).astype(np.uint8)
+
+        gaussian_noise_image = Image.fromarray(noise_img)
+
+        # Save the output image to the specified directory
+        new_filename = os.path.basename(input_folder_path) + "_" + raw_filename + "_gaussian_noise.jpg"
+        new_filename = new_filename.replace(" ", "_")
+        gaussian_noise_image.save(os.path.join(output_folder_path, "JPEGImages", new_filename))
+
+        # Save a new xml file for the annotation data
+        build_xml_annotation(image_objects, new_filename, output_folder_path)
+
+# Converts a XML tree to a dictionary
+def elementtree_to_dict(element):
+    node = dict()
+
+    text = getattr(element, 'text', None)
+    if text is not None:
+        node['text'] = text
+
+    node.update(element.items()) # element's attributes
+
+    child_nodes = {}
+    for child in element: # element's children
+        child_nodes.setdefault(child, []).append( elementtree_to_dict(child) )
+
+    # convert all single-element lists into non-lists
+    for key, value in child_nodes.items():
+        if len(value) == 1:
+             child_nodes[key] = value[0]
+
+    node.update(child_nodes.items())
+
+    return node
+
+# Builds a ndjson annotation from an object list
+def build_ndjson_annotation():
+    pass
