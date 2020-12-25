@@ -209,7 +209,7 @@ def convert_Supervisely_2_Pascal_VOC(input_supervisely_folder, output_folder, cl
 def convert_original_image(filename, input_folder_path, output_folder_path):
     
     # Get annotation data from the respective annotation file
-    image_objects = common_functions.get_image_objects(filename, input_folder_path)
+    image_objects = common_functions.get_Supervisely_objects(filename, input_folder_path)
 
     # Check if the image has valid data. If not, it can't be used
     if image_objects:

@@ -156,6 +156,7 @@ def pascal2pascal():
 
     # Just modify the input folder's .xmls
     else:
+        
         # You can't have a dataset generated without an output folder
         if args.prepare_dataset:
             raise AttributeError('A dataset cannot be prepared if no output is specified.')

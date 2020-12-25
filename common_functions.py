@@ -2,15 +2,6 @@
 # First Robotics Team 834
 # Created: 8/23/20
 
-# Import required libraries
-from skimage.util import random_noise
-from PIL import Image, ImageOps
-from zipfile import ZipFile
-from random import randint
-import numpy as np
-import json
-import os
-
 # Gets all of the file paths in a directory, then returns a list of paths
 def get_all_file_paths(directory):
 
@@ -29,6 +20,7 @@ def get_all_file_paths(directory):
   
     # Return all file paths 
     return file_paths
+
 
 # Builds an XML annotation from an object array, the name of the image, and the output folder
 def build_xml_annotation(objects, image_name, output_folder):
@@ -154,8 +146,13 @@ def zip_dataset(output_path, zip_filename, debug):
         shutil.rmtree(os.path.join(output_path, "JPEGImages"))
         shutil.rmtree(os.path.join(output_path, "Annotations"))
 
+
 # Flips the input image horizontally. Takes in the filename (in the input folder) and the input and folders
 def flip_image(filename, input_folder_path, output_folder_path):
+
+    # Import requirements
+    from PIL import Image, ImageOps
+    import os
 
     # Get the file's name for splitting
     raw_filename, file_ext = os.path.splitext(filename)
@@ -190,8 +187,13 @@ def flip_image(filename, input_folder_path, output_folder_path):
         # Save a new xml file for the annotation data
         build_xml_annotation(image_objects, new_filename, output_folder_path)
 
+
 # Gets all of the objects in a Supervisely annotation
 def get_Supervisely_objects(image_name, input_supervisely_folder):
+
+    # Import libraries
+    import json
+    import os
 
     # Create a accumulator
     objects = []
@@ -216,8 +218,14 @@ def get_Supervisely_objects(image_name, input_supervisely_folder):
 
     return objects 
 
+
 # Crops an image using the filename (in input folder), the output, and the allowed crop percentages. It also has a safety of a minimum percentage of original size
 def crop_image(filename, input_folder_path, output_folder_path, allowed_percent_crop_lower, allowed_percent_crop_upper, minimum_box_percent):
+
+    # Import libraries
+    from PIL import Image
+    from random import randint
+    import os
 
     # Get the file's name for splitting
     raw_filename, file_ext = os.path.splitext(filename)
@@ -370,8 +378,15 @@ def crop_image(filename, input_folder_path, output_folder_path, allowed_percent_
         # Save a new xml file for the annotation data
         build_xml_annotation(image_objects, new_filename, output_folder_path)
 
-# Adds Guassian (basically random) noise to an image with the image's name (must be in the input folder), input folder, and output folder
+
+# Adds Gaussian (basically random) noise to an image with the image's name (must be in the input folder), input folder, and output folder
 def gaussian_noise_image(filename, input_folder_path, output_folder_path):
+
+    # Import libraries
+    from skimage.util import random_noise
+    from PIL import Image
+    import numpy as np
+    import os
 
     # Get the file's name for splitting
     raw_filename, file_ext = os.path.splitext(filename)
@@ -404,29 +419,71 @@ def gaussian_noise_image(filename, input_folder_path, output_folder_path):
         # Save a new xml file for the annotation data
         build_xml_annotation(image_objects, new_filename, output_folder_path)
 
-# Converts a XML tree to a dictionary
-def elementtree_to_dict(element):
-    node = dict()
 
-    text = getattr(element, 'text', None)
-    if text is not None:
-        node['text'] = text
+# Extracts the data from a PascalVOC .xml file into an object list
+def get_PascalVOC_objects(filename, input_path):
 
-    node.update(element.items()) # element's attributes
+    # Import libraries
+    from xml.etree import ElementTree
+    import os
 
-    child_nodes = {}
-    for child in element: # element's children
-        child_nodes.setdefault(child, []).append( elementtree_to_dict(child) )
+    # Get the file's extension
+    raw_filename, file_ext = os.path.splitext(filename)
 
-    # convert all single-element lists into non-lists
-    for key, value in child_nodes.items():
-        if len(value) == 1:
-             child_nodes[key] = value[0]
+    # Copy the .xmls, then convert them
+    if file_ext != ".xml":
 
-    node.update(child_nodes.items())
+        # Throw error
+        os.error("File specified is not an xml!")
+        return -1
 
-    return node
+    # Open the file with the element tree
+    tree = ElementTree.parse(os.path.join(input_path, filename))
+
+    # Get the root of the XML
+    root = tree.getroot()
+
+    # Loop through to find the parameters that need to be changed
+    for possible_object in root:
+
+        # Check for the objects in a file
+        if possible_object.tag == 'object':
+
+            # Create an array that will be appended to the object list later
+            object = ["", 0, 0, 0, 0]
+
+            # We found an object!
+            for object_parameter in possible_object:
+
+                # Get to the names of the objects
+                if object_parameter.tag == 'name':
+
+                    # Add the object's name to the first element of the array
+                    object[0] = object_parameter.text
+
+                # Get the object's bounding box values
+                elif object_parameter.tag == 'bndbox':
+
+                    # Cycle through the values in the bounding box
+                    for value in object_parameter:
+
+                        # Check to see what the value is, then set the respective value in the object array
+                        if value.tag == 'xmin':
+                            object[1] = int(value.text)
+
+                        if value.tag == 'ymin':
+                            object[2] = int(value.text)
+
+                        if value.tag == 'xmax':
+                            object[3] = int(value.text)
+
+                        if value.tag == 'ymax':
+                            object[4] = int(value.text)
+
+            # We finished the loop, time to add the object that we made to the main array
+
+
 
 # Builds a ndjson annotation from an object list
-def build_ndjson_annotation():
+def build_ndjson_annotation(objects, image_name, output_folder):
     pass

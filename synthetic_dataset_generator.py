@@ -12,7 +12,7 @@ import time
 import os
 
 # Resources folder for available objects
-objects_folder = "./resources/object_images"
+objects_folder = "./resources/synthetic_objects"
 image_objects_to_object_names = [["ball.jpg", "Power_Cell"], ["ball2.jpg", "Power_Cell"], ["ball3.jpg", "Power_Cell"]]
 object_count_min = 1
 object_count_max = 5
@@ -29,7 +29,7 @@ def main():
     # Add arguments
     # String arguments
     required_args.add_argument("-i", "--input",  required = True, help = "Input path to the folder containing the data to be converted.")
-    required_args.add_argument(       "-o", "--output", required = True, help = "Output path for the converted data. All images will be copied here as well. If nothing is specified, then the .xmls in the input directory will be modifed.")
+    required_args.add_argument("-o", "--output", required = True, help = "Output path for the converted data. All images will be copied here as well. If nothing is specified, then the .xmls in the input directory will be modifed.")
 
     # Optional (Boolean) arguments
     parser.add_argument("-c", "--cleanup",         action = "store_true", default = False, help = "If parameter is specified, then the input folder path will be automatically deleted after use")
