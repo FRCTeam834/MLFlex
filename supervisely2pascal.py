@@ -226,7 +226,7 @@ def convert_original_image(filename, input_folder_path, output_folder_path):
         image.save(os.path.join(output_folder_path, "JPEGImages", (new_filename + ".jpg")))
 
         # Build an xml with the old file
-        common_functions.build_xml_annotation(image_objects, (new_filename + ".jpg"), output_folder_path)
+        common_functions.build_PascalVOC_annotation(image_objects, (new_filename + ".jpg"), output_folder_path)
 
 
 

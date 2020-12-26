@@ -3,6 +3,9 @@
 # Created: 8/23/20
 
 # Gets all of the file paths in a directory, then returns a list of paths
+from ndjson.api import writer
+
+
 def get_all_file_paths(directory):
 
     # Import necessary libaries
@@ -22,8 +25,8 @@ def get_all_file_paths(directory):
     return file_paths
 
 
-# Builds an XML annotation from an object array, the name of the image, and the output folder
-def build_xml_annotation(objects, image_name, output_folder):
+# Builds a PascalVOC annotation from an object array, the name of the image, and the output folder
+def build_PascalVOC_annotation(objects, image_name, output_folder):
 
     # Import libaries
     import xml.etree.ElementTree as xml
@@ -185,7 +188,7 @@ def flip_image(filename, input_folder_path, output_folder_path):
             object_[3] = x_min_offset
 
         # Save a new xml file for the annotation data
-        build_xml_annotation(image_objects, new_filename, output_folder_path)
+        build_PascalVOC_annotation(image_objects, new_filename, output_folder_path)
 
 
 # Gets all of the objects in a Supervisely annotation
@@ -376,7 +379,7 @@ def crop_image(filename, input_folder_path, output_folder_path, allowed_percent_
             current_object = current_object + 1
 
         # Save a new xml file for the annotation data
-        build_xml_annotation(image_objects, new_filename, output_folder_path)
+        build_PascalVOC_annotation(image_objects, new_filename, output_folder_path)
 
 
 # Adds Gaussian (basically random) noise to an image with the image's name (must be in the input folder), input folder, and output folder
@@ -417,7 +420,7 @@ def gaussian_noise_image(filename, input_folder_path, output_folder_path):
         gaussian_noise_image.save(os.path.join(output_folder_path, "JPEGImages", new_filename))
 
         # Save a new xml file for the annotation data
-        build_xml_annotation(image_objects, new_filename, output_folder_path)
+        build_PascalVOC_annotation(image_objects, new_filename, output_folder_path)
 
 
 # Extracts the data from a PascalVOC .xml file into an object list
@@ -427,6 +430,9 @@ def get_PascalVOC_objects(filename, input_path):
     from xml.etree import ElementTree
     import os
 
+    # Create object accumulator
+    object_list = []
+
     # Get the file's extension
     raw_filename, file_ext = os.path.splitext(filename)
 
@@ -434,7 +440,7 @@ def get_PascalVOC_objects(filename, input_path):
     if file_ext != ".xml":
 
         # Throw error
-        os.error("File specified is not an xml!")
+        print("File specified is not an xml!")
         return -1
 
     # Open the file with the element tree
@@ -481,9 +487,59 @@ def get_PascalVOC_objects(filename, input_path):
                             object[4] = int(value.text)
 
             # We finished the loop, time to add the object that we made to the main array
+            object_list.append(object)
 
+    # Return the array we created
+    return object_list
 
 
 # Builds a ndjson annotation from an object list
-def build_ndjson_annotation(objects, image_name, output_folder):
-    pass
+def build_ndjson_annotation(object_list, annotation_name, output_folder):
+
+    # Import libraries
+    import ndjson
+    import os
+
+    # Get the raw filename
+    raw_annotation_name, annotation_ext = os.path.splitext(annotation_name)
+    
+    # Open a new file for writing
+    with open(os.path.join(output_folder, raw_annotation_name + ".ndjson"), "w+") as ndjson_file:
+        
+        # Open the file writer
+        ndjson_writer = ndjson.writer(ndjson_file, ensure_ascii = False)
+        
+        # Loop through each of the objects in the object list
+        for object_ in object_list:
+
+            # Create a dictionary with the object's array
+            object_dict = {"uuid":      "141", 
+                            "schemaId": "141", 
+                            "dataRow":  {
+                                "id": "141"
+                            },
+                            "bbox": {
+                                "top":    object_[1],
+                                "left":   object_[2],
+                                "height": object_[3] - object_[1],
+                                "width":  object_[4] - object_[2]
+                            }} 
+
+            # Write the dictionary to a new row 
+            ndjson_writer.writerow(object_dict)
+
+        # Close the file
+        ndjson_file.close()
+
+# Function to read a ndjson into an object list
+def get_ndjson_objects(filename, input_path):
+
+    # Import the libraries
+    import ndjson
+    import os
+    
+    # Open the file
+    with open(os.path.join(input_path, filename + ".ndjson"), "w+") as ndjson_file:
+
+        # Create a reader for the file
+        ndjson_reader = ndjson.reader(ndjson_file)

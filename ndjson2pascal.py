@@ -1,9 +1,8 @@
-# Written by Christian Piper
-# First Robotics Team 834
-# Created: 12/22/20
+# Written by Christian Piper and Mohammad Durrani
+# FRC Team 834
+# Created: 12/26/20
 
 # Import libraries
-from xml.etree import ElementTree
 import common_functions
 import argparse
 import ndjson
@@ -11,9 +10,7 @@ import shutil
 import time
 import os
 
-# Main function, pulls args, preps output, then converts the files
-def pascal2ndjson():
-    
+def ndjson2pascal():
     # Initialize parser 
     parser = argparse.ArgumentParser(description = 'MLFlex: A quick and easy annotation manipulation tool. Annotation manipulation program') 
 
@@ -45,46 +42,44 @@ def pascal2ndjson():
 
     # Create a directory for the annotations, then set the filepath to it.
     os.mkdir(os.path.join(output_path, "Annotations"))
+    os.mkdir(os.path.join(output_path, "JPEGImages"))
     filepath = os.path.join(output_path, "Annotations")
 
-    # Get all of the files in the input directory
+    # Get the files in the input folder
     input_files = os.listdir(input_path)
-    
-    # Create an accumulator for counting the current file
+
+    # Set the file index if we're providing feedback
     if args.feedback:
         current_file_index = 1
     
-    # Loop through the files provided
+    # Loop through all of the files
     for filename in input_files:
 
-        # Get all of the objects in the array
-        image_objects = common_functions.get_PascalVOC_objects(filename, input_path)
+        # Get the list of objects in an image
+        image_objects = common_functions.get_ndjson_objects(filename, input_path)
+        
+        # Build a PascalVOC annotation from the list of objects
+        common_functions.build_PascalVOC_annotation(image_objects, filename, os.path.join(output_path, "Annotations"))
 
-        # Create an ndjson with the object array
-        common_functions.build_ndjson_annotation(image_objects, filename, os.path.join(output_path, "Annotations"))
-
-        # Only give feedback if needed
+        # Print feedback if the user wants it
         if args.feedback:
 
-            # Print out the current status
+            # Print the index of the file out of the total
             print("Current file: " + str(current_file_index) + " out of " + str(len(input_files)))
-
-            # Change the counter
+            
+            # Increment the counter
             current_file_index =+ 1
 
-    # Cleanup the files if specified
+    # Cleanup the input path if specified
     if args.cleanup:
         shutil.rmtree(input_path)
-
-    # Get the total time
-    total_time = time.time() - start_time
     
-    # Print total time to convert
-    if args.feedback:
-        
-        # Print the feedback
-        print("Total time to convert: " + str(round(total_time, 4)) + " seconds")
+    # Calculate total time to run
+    total_time = time.time()-start_time
 
+    # Print conversion time
+    if args.feedback: 
+        print("Total time to convert: " + str(round(total_time, 4) + " seconds"))
 
-# Run the main function
-pascal2ndjson()
+# Run the function
+ndjson2pascal()
