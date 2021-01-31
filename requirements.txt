@@ -1,5 +1,6 @@
 pillow
 numpy
 ndjson
+labelbox
 scikit-image
 opencv-python
