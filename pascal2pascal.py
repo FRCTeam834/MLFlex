@@ -21,7 +21,7 @@ convert_list = ['Goal',                     'Goal',                      'Power_
 
 def pascal2pascal():
 
-    # Initialize parser 
+    # Initialize parser
     parser = argparse.ArgumentParser(description = 'MLFlex: A quick and easy annotation manipulation tool. Annotation manipulation program') 
 
     # Create required argument group
@@ -119,7 +119,7 @@ def pascal2pascal():
             # Copy the .jpgs
             elif file_ext == ".jpg":
                 if args.prepare_dataset:
-                    shutil.copy(os.path.join(input_path, filename), os.path.join(output_path, "JPEGImages"))                
+                    shutil.copy(os.path.join(input_path, filename), os.path.join(output_path, "JPEGImages"))
                 else:
                     shutil.copy(os.path.join(input_path, filename), output_path)
 
@@ -137,7 +137,7 @@ def pascal2pascal():
                     image.save(os.path.join(output_path, "JPEGImages", new_filename))
                 else:
                     image.save(os.path.join(output_path, new_filename))
-                
+
 
             # Provide feedback
             if args.feedback:
@@ -156,14 +156,14 @@ def pascal2pascal():
 
     # Just modify the input folder's .xmls
     else:
-        
+
         # You can't have a dataset generated without an output folder
         if args.prepare_dataset:
             raise AttributeError('A dataset cannot be prepared if no output is specified.')
-        
+
         # We're good, continue with the modification
         else:
-            
+
             # Get the list of files in the input directory
             input_files = os.listdir(input_path)
 

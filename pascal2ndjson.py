@@ -16,7 +16,7 @@ import os
 # Main function, pulls args, preps output, then converts the files
 def pascal2ndjson():
     
-    # Initialize parser 
+    # Initialize parser
     parser = argparse.ArgumentParser(description = 'MLFlex: A quick and easy annotation manipulation tool. Annotation manipulation program') 
 
     # Create required argument group
